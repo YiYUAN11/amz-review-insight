@@ -1,0 +1,665 @@
+{
+ "_说明": "taxonomy 配置 —— 复制这份改成本品类的即可",
+ "_字段说明": {
+  "inputs": "输入文件路径列表",
+  "text_columns": "指定文本列：{文件名: 列名} 或 {工作表名: 列名}；不填则自动挑最长的列",
+  "parts": "部件清单：{name 中文名, aliases 英文别名, cat1 归属一级大类, modes 该部件可能的失效模式}",
+  "failure_modes": "失效模式库：{name 模式名, desc 现象描述, cat1 归属一级大类, patterns 正则列表}",
+  "extra_translations": "补充翻译：{英文词: 中文}",
+  "mode_cat1": "失效模式到一级大类的映射（可选，默认取 failure_modes 里的 cat1）"
+ },
+ "inputs": [
+  "D:/path/to/退货报告.xlsx",
+  "D:/path/to/评论导出.xlsx"
+ ],
+ "text_columns": {},
+ "parts": [
+  {
+   "name": "铰链/中轴",
+   "aliases": [
+    "hinge",
+    "hinges",
+    "spine",
+    "fold"
+   ],
+   "cat1": "结构/功能配件",
+   "modes": [
+    "无防护",
+    "覆盖不足",
+    "宣传误导",
+    "断裂",
+    "形变",
+    "结构强度"
+   ]
+  },
+  {
+   "name": "支架/指环",
+   "aliases": [
+    "stand",
+    "kickstand",
+    "ring",
+    "kick stand",
+    "rotator",
+    "finger holder"
+   ],
+   "cat1": "结构/功能配件",
+   "modes": [
+    "断裂脱落",
+    "撑不住",
+    "松动自转",
+    "卡涩",
+    "形变",
+    "异响",
+    "磁吸失效",
+    "结构强度"
+   ]
+  },
+  {
+   "name": "磁吸环",
+   "aliases": [
+    "magnet",
+    "magnetic",
+    "magsafe",
+    "mag safe"
+   ],
+   "cat1": "结构/功能配件",
+   "modes": [
+    "磁吸失效",
+    "对位偏差",
+    "结构干扰"
+   ]
+  },
+  {
+   "name": "屏幕保护膜",
+   "aliases": [
+    "screen protector",
+    "protector",
+    "screen guard",
+    "glass",
+    "film"
+   ],
+   "cat1": "结构/功能配件",
+   "modes": [
+    "顶膜",
+    "气泡",
+    "粘着不良",
+    "尺寸不匹配",
+    "到货有损",
+    "配件缺失",
+    "贴膜体验",
+    "不工作"
+   ]
+  },
+  {
+   "name": "前屏盖/前框",
+   "aliases": [
+    "front cover",
+    "front frame",
+    "front piece",
+    "front part",
+    "front case"
+   ],
+   "cat1": "尺寸贴合",
+   "modes": [
+    "脱落",
+    "扣合不牢",
+    "断裂",
+    "结构强度",
+    "开合受阻",
+    "使用受阻",
+    "变形"
+   ]
+  },
+  {
+   "name": "中框/边框",
+   "aliases": [
+    "frame",
+    "middle frame",
+    "side bar",
+    "trim",
+    "band",
+    "corner",
+    "latch",
+    "clip"
+   ],
+   "cat1": "产品做工&材质",
+   "modes": [
+    "断裂",
+    "开裂",
+    "覆盖不足",
+    "防护不足",
+    "开孔问题"
+   ]
+  },
+  {
+   "name": "按键/开孔",
+   "aliases": [
+    "button",
+    "volume",
+    "cut out",
+    "port"
+   ],
+   "cat1": "使用体验",
+   "modes": [
+    "开孔问题"
+   ]
+  },
+  {
+   "name": "拉链/开合",
+   "aliases": [
+    "zip",
+    "zipper",
+    "strap"
+   ],
+   "cat1": "结构/功能配件",
+   "modes": [
+    "断裂",
+    "卡涩",
+    "脱落"
+   ]
+  },
+  {
+   "name": "整体做工",
+   "aliases": [
+    "material",
+    "plastic",
+    "fabric",
+    "build quality"
+   ],
+   "cat1": "产品做工&材质",
+   "modes": [
+    "过于单薄",
+    "偏软无支撑",
+    "过于厚重",
+    "廉价塑料感",
+    "整体脆弱",
+    "做工粗糙",
+    "防护不足"
+   ]
+  },
+  {
+   "name": "包装/物流",
+   "aliases": [
+    "box",
+    "package",
+    "packaging"
+   ],
+   "cat1": "包装物流",
+   "modes": []
+  }
+ ],
+ "failure_modes": [
+  {
+   "name": "无防护",
+   "desc": "产品本身未设计该部位护盖 / 完全没有覆盖",
+   "cat1": "结构/功能配件",
+   "patterns": [
+    "(no|without|missing|lack of|not have|does not have|did not have|didnt have)[^.]{0,25}(hinge|spine|cover|protection)",
+    "no hinge protection",
+    "no hinge cover",
+    "there is no protection"
+   ]
+  },
+  {
+   "name": "覆盖不足",
+   "desc": "有但没盖全，边角露白 / 有缝隙",
+   "cat1": "结构/功能配件",
+   "patterns": [
+    "(not|does not|doesnt|did not)[^.]{0,25}(fully |completely )?(protect|cover)[^.]{0,25}(hinge|spine|edge|side)",
+    "not fully protected",
+    "no protection",
+    "not protected all the way",
+    "doesn't cover the side",
+    "does not secure all corners"
+   ]
+  },
+  {
+   "name": "宣传误导",
+   "desc": "图片/描述让人以为有，实际没有",
+   "cat1": "Listing预期不符",
+   "patterns": [
+    "(thought|assumed|expected|looked like)[^.]{0,30}(hinge|protector|protection|cover)",
+    "(pictures?|images?|description|advertised)[^.]{0,40}(hinge|misleading|deceptive|false)",
+    "deceptive",
+    "misleading",
+    "false advertising"
+   ]
+  },
+  {
+   "name": "断裂脱落",
+   "desc": "部件断开、脱落、崩掉",
+   "cat1": "产品做工&材质",
+   "patterns": [
+    "(broke|broken|snapped|cracked|tore|came off|fell off|came out|detached)",
+    "(ring|stand|latch|clip|zip|hinge)[^.]{0,25}(broke|broken|snapped|came off|fell off)"
+   ]
+  },
+  {
+   "name": "开裂",
+   "desc": "出现裂缝但尚未断开",
+   "cat1": "产品做工&材质",
+   "patterns": [
+    "crack",
+    "cracked",
+    "cracking",
+    "shatter"
+   ]
+  },
+  {
+   "name": "形变",
+   "desc": "部件弯曲翘曲、无法归位",
+   "cat1": "产品做工&材质",
+   "patterns": [
+    "(bent|warp|warped|deform)[^.]{0,25}(ring|stand|hinge|band|trim|cover)",
+    "keeps warping"
+   ]
+  },
+  {
+   "name": "结构强度",
+   "desc": "材质/连接偏弱，尚未断但已明显易损",
+   "cat1": "产品做工&材质",
+   "patterns": [
+    "(flimsy|fragile|frail|weak|cheap|janky|low quality)[^.]{0,25}(stand|ring|hinge|frame|material|plastic)",
+    "not sturdy",
+    "not strong",
+    "not durable",
+    "isn.t strong enough",
+    "is not strong enough",
+    "not strong enough",
+    "isn.t durable",
+    "not sturdy enough",
+    "weak"
+   ]
+  },
+  {
+   "name": "撑不住",
+   "desc": "支起后承不住重量，会倒下或角度自己变",
+   "cat1": "结构/功能配件",
+   "patterns": [
+    "(does not|doesnt|won.t|cannot)[^.]{0,20}(hold|support|stand)[^.]{0,25}(weight|phone|upright|up)",
+    "not strong enough to hold",
+    "phone won.t stand",
+    "not stable",
+    "tilted",
+    "stand .{0,20}not working",
+    "magnetic stand .{0,20}not working",
+    "stand .{0,15}isn.t working",
+    "won.t stand",
+    "does not hold (the )?phone",
+    "not strong enough"
+   ]
+  },
+  {
+   "name": "松动自转",
+   "desc": "转轴无阻尼，自发旋转、锁不住角度",
+   "cat1": "结构/功能配件",
+   "patterns": [
+    "(spin|rotat)[^.]{0,25}(too (easily|freely|much)|freely)",
+    "too loose",
+    "does not hold (still|tight|in place)",
+    "rotates too much",
+    "just rotates",
+    "does not hold still",
+    "hold still",
+    "should be sticky",
+    "doesn.t hold still",
+    "grip doesn.t hold",
+    "freely rotate",
+    "spins? freely"
+   ]
+  },
+  {
+   "name": "卡涩",
+   "desc": "转动/开合受阻、不顺滑、需用力",
+   "cat1": "使用体验",
+   "patterns": [
+    "(does not|doesnt|won.t|will not) (spin|turn|rotate|move|open|close)",
+    "hard to (open|turn|pin)",
+    "not smooth",
+    "stiff",
+    "jammed"
+   ]
+  },
+  {
+   "name": "异响",
+   "desc": "转动或开合时发出明显咔哒声/噪音",
+   "cat1": "使用体验",
+   "patterns": [
+    "noise",
+    "loud",
+    "noisy",
+    "click",
+    "rattle",
+    "creak",
+    "squeak"
+   ]
+  },
+  {
+   "name": "磁吸失效",
+   "desc": "磁吸吸不住、会滑落",
+   "cat1": "结构/功能配件",
+   "patterns": [
+    "(magnet|magnetic)[^.]{0,25}(weak|not strong|slip|fall)",
+    "magnet (is )?weak",
+    "slips off",
+    "does not hold magnetically",
+    "wireless charger .{0,30}doesn.t work",
+    "wireless charging .{0,20}doesn.t work",
+    "does not charge",
+    "won.t charge",
+    "magnetic .{0,20}not working",
+    "magnet .{0,15}not working",
+    "charger .{0,20}doesn.t work",
+    "won.?t[^.]{0,25}charge",
+    "doesn.?t[^.]{0,25}charge",
+    "not[^.]{0,15}charge",
+    "no[^.]{0,10}charge"
+   ]
+  },
+  {
+   "name": "对位偏差",
+   "desc": "磁吸环位置偏移导致对不上",
+   "cat1": "结构/功能配件",
+   "patterns": [
+    "not aligned",
+    "misalign",
+    "not properly aligned",
+    "off center"
+   ]
+  },
+  {
+   "name": "结构干扰",
+   "desc": "旋转/支架结构挡住或干扰其他功能",
+   "cat1": "结构/功能配件",
+   "patterns": [
+    "(ring|stand|spin|360)[^.]{0,25}(interfer|make|cause)[^.]{0,25}(charg|wireless)",
+    "charge through (the )?stand ring"
+   ]
+  },
+  {
+   "name": "顶膜",
+   "desc": "装壳后把已贴好的膜顶起、掀起、反复脱落",
+   "cat1": "结构/功能配件",
+   "patterns": [
+    "(lift|push|peel|pop|pull)[^.]{0,30}(screen protector|protector|film)",
+    "(screen protector|protector)[^.]{0,30}(lift|pop|peel|push|come off|came off)",
+    "keeps pushing off",
+    "pops out the screen protector"
+   ]
+  },
+  {
+   "name": "气泡",
+   "desc": "贴膜产生气泡、无法排尽空气",
+   "cat1": "结构/功能配件",
+   "patterns": [
+    "bubble",
+    "bubbles",
+    "bubbling",
+    "air pocket",
+    "get all the air out"
+   ]
+  },
+  {
+   "name": "粘着不良",
+   "desc": "膜粘不牢、边缘翘起、反复脱落",
+   "cat1": "结构/功能配件",
+   "patterns": [
+    "(does not|doesnt|did not|didnt|won.t) (stick|adhere)",
+    "not adhering",
+    "keeps coming off",
+    "not stick (well|to the screen)"
+   ]
+  },
+  {
+   "name": "尺寸不匹配",
+   "desc": "膜/部件与主体尺寸对不上",
+   "cat1": "尺寸贴合",
+   "patterns": [
+    "(does not|doesnt|did not) fit[^.]{0,30}(protector|film|outer screen|with the case)",
+    "too (wide|small|tight|big) (for|with)",
+    "not compatible with[^.]{0,25}(protector|film)"
+   ]
+  },
+  {
+   "name": "到货有损",
+   "desc": "配件/主体到货时已裂或已有瑕疵",
+   "cat1": "包装物流",
+   "patterns": [
+    "(protector|screen guard|glass|film)[^.]{0,25}(cracked|damaged|bent|dusty)",
+    "came cracked",
+    "arrived damaged"
+   ]
+  },
+  {
+   "name": "配件缺失",
+   "desc": "宣传含配件但未随包收到",
+   "cat1": "包装物流",
+   "patterns": [
+    "missing (item|part|screen protector|glass|hinge|sticker)",
+    "not included",
+    "came without",
+    "does not come with",
+    "did not come with",
+    "package was empty"
+   ]
+  },
+  {
+   "name": "贴膜体验",
+   "desc": "贴膜过程本身难操作（对位/排气）",
+   "cat1": "使用体验",
+   "patterns": [
+    "(application|applying|install)[^.]{0,25}(terrible|hard|difficult)",
+    "near impossible to get all the air",
+    "did not have the plastic on it correctly"
+   ]
+  },
+  {
+   "name": "脱落",
+   "desc": "部件会自己掉下来/弹开",
+   "cat1": "结构/功能配件",
+   "patterns": [
+    "(front|cover|it)[^.]{0,30}(keeps? (falling|popping|lifting|coming)|falls? off|pops? off)",
+    "comes loose",
+    "fell apart",
+    "not staying on",
+    "doesn.t stay on",
+    "won.t stay on",
+    "keeps falling off",
+    "falls off",
+    "fell off",
+    "pops off"
+   ]
+  },
+  {
+   "name": "扣合不牢",
+   "desc": "卡扣扣不进/锁不住",
+   "cat1": "尺寸贴合",
+   "patterns": [
+    "(does not|doesnt|won.t|not) (click|lock|latch|snap) (in|into|properly)?",
+    "not lock in place",
+    "does not sit flush"
+   ]
+  },
+  {
+   "name": "开合受阻",
+   "desc": "装上后影响手机正常开合/合不拢",
+   "cat1": "使用体验",
+   "patterns": [
+    "(does not|doesnt|won.t|not) (close|shut|open)[^.]{0,30}(properly|fully|flush)?",
+    "changes the opening",
+    "not closing like it should",
+    "open by itself",
+    "interferes with the closing"
+   ]
+  },
+  {
+   "name": "使用受阻",
+   "desc": "遮挡屏幕边缘、影响触控/滑动",
+   "cat1": "使用体验",
+   "patterns": [
+    "(cannot|can.t)[^.]{0,20}(access|swipe)",
+    "blocks? (the )?screen",
+    "hard to use touch id",
+    "covers part of (my )?(exterior )?screen"
+   ]
+  },
+  {
+   "name": "变形",
+   "desc": "饰条/边框弯曲，遮挡或影响使用",
+   "cat1": "外观手感",
+   "patterns": [
+    "(band|trim|edge|frame|lip|cover)[^.]{0,30}(bent|deform|warp|too high|covers part)",
+    "it looks bent"
+   ]
+  },
+  {
+   "name": "过于单薄",
+   "desc": "壁厚不足、偏轻，一捏就软",
+   "cat1": "产品做工&材质",
+   "patterns": [
+    "(too|very|so|extremely|incredibly) thin",
+    "to thin",
+    "thin (plastic|case|piece|wall|frame)",
+    "the material is too thin"
+   ]
+  },
+  {
+   "name": "偏软无支撑",
+   "desc": "材质过软，撑不住、易塌",
+   "cat1": "产品做工&材质",
+   "patterns": [
+    "too soft",
+    "too flexible",
+    "too bendable",
+    "silicone",
+    "floppy"
+   ]
+  },
+  {
+   "name": "过于厚重",
+   "desc": "比预期厚/重，影响握持",
+   "cat1": "外观手感",
+   "patterns": [
+    "(too|very|so|really) thick",
+    "thicker than",
+    "too heavy",
+    "heavier than",
+    "too bulky",
+    "bulky"
+   ]
+  },
+  {
+   "name": "廉价塑料感",
+   "desc": "触感/观感呈现廉价塑料",
+   "cat1": "产品做工&材质",
+   "patterns": [
+    "cheap plastic",
+    "looks (too )?plastic",
+    "plastic feel",
+    "feels (like )?plastic",
+    "cheaper quality",
+    "shabby",
+    "janky",
+    "looks cheap",
+    "feels cheap",
+    "cheap looking"
+   ]
+  },
+  {
+   "name": "整体脆弱",
+   "desc": "flimsy/fragile，整体强度不足",
+   "cat1": "产品做工&材质",
+   "patterns": [
+    "flimsy",
+    "fragile",
+    "frail",
+    "weak",
+    "not sturdy",
+    "not solid",
+    "does not feel sturdy",
+    "case too weak"
+   ]
+  },
+  {
+   "name": "做工粗糙",
+   "desc": "毛刺、接缝、涂层等工艺问题",
+   "cat1": "产品做工&材质",
+   "patterns": [
+    "(rough|sharp|uneven|burr)[^.]{0,20}(edge|seam|corner)",
+    "coating[^.]{0,15}peel",
+    "peeling",
+    "shiny",
+    "matte finish",
+    "airbag"
+   ]
+  },
+  {
+   "name": "防护不足",
+   "desc": "因材质薄/软导致防护不够",
+   "cat1": "产品做工&材质",
+   "patterns": [
+    "not (enough )?(protect|protective)",
+    "offered no protection",
+    "no real protection",
+    "inadequate protection",
+    "poor protection",
+    "not enough protection",
+    "doesn.t protect well",
+    "does not protect well",
+    "not protect well",
+    "not secure enough to protect",
+    "doesn.t provide protection",
+    "no protection for",
+    "offers? no protection"
+   ]
+  },
+  {
+   "name": "开孔问题",
+   "desc": "开孔/按键位对不准或有缺陷",
+   "cat1": "使用体验",
+   "patterns": [
+    "cut ?outs are not aligned",
+    "volume[^.]{0,25}(deformed|stays pressed|stuck)",
+    "button[^.]{0,20}(not work|stuck)"
+   ]
+  },
+  {
+   "name": "不工作",
+   "desc": "部件/功能完全失效、无法正常使用",
+   "cat1": "结构/功能配件",
+   "patterns": [
+    "doesn.t work",
+    "does not work",
+    "not working",
+    "stopped working",
+    "no longer works",
+    "completely broken"
+   ]
+  },
+  {
+   "name": "不兼容",
+   "desc": "与该配件/功能不兼容，无法配合使用",
+   "cat1": "结构/功能配件",
+   "patterns": [
+    "not screen protector friendly",
+    "screen protector friendly",
+    "not compatible with[^.]{0,25}(protector|film|screen)",
+    "doesn.?t work with[^.]{0,25}(protector|screen)"
+   ]
+  },
+  {
+   "name": "短期失效",
+   "desc": "短期内就损坏，明显不耐用",
+   "cat1": "产品做工&材质",
+   "patterns": [
+    "not a week old",
+    "less than a week",
+    "within \\d+ (day|hour|week)",
+    "after only a few days",
+    "didn.?t last",
+    "lasted? only"
+   ]
+  }
+ ],
+ "extra_translations": {}
+}

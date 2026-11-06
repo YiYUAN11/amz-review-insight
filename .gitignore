@@ -1,0 +1,52 @@
+# ============ Python ============
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+env/
+
+# ============ 运行产物 ============
+# 本仓库只发布技能本身，不含任何分析输出。
+# 只忽略"生成的"文件，不碰 templates/web/ 下的模板源文件。
+/output/
+/*.xlsx
+/*.html
+/*.md
+!README.md
+/*.json
+*.log
+
+# ============ 系统垃圾 ============
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============ IDE ============
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ============ 临时文件 ============
+*.tmp
+*.temp
+*.bak
+*.bak2

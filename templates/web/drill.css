@@ -1,0 +1,144 @@
+/* ==========================================================================
+   三级痛点下钻 · 证据墙样式（追加）
+   ========================================================================== */
+
+/* 痛点下钻卡片 */
+.drill-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(430px, 1fr));
+  gap: 16px;
+  margin-top: 4px;
+  align-items: start;   /* 关键：不让同一行卡片等高拉伸，折叠时不留空白 */
+}
+
+.drill-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+}
+.drill-head {
+  padding: 15px 18px 13px;
+  background: linear-gradient(135deg, #f3f6fb, #fafbfd);
+  border-bottom: 1px solid var(--line-soft);
+  border-left: 3px solid var(--accent);
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  user-select: none;
+}
+.drill-head:hover { background: linear-gradient(135deg, #eaf0f9, #f5f8fc); }
+.drill-head .hi { flex: 1; min-width: 0; }
+.drill-head .l1 {
+  font-size: 10.5px; color: var(--text-mute); letter-spacing: .5px;
+  text-transform: uppercase; margin-bottom: 3px;
+}
+.drill-head .l2 { font-size: 14.5px; font-weight: 700; line-height: 1.35; }
+.drill-head .stat {
+  font-size: 11.5px; color: var(--text-dim); margin-top: 5px;
+}
+.drill-head .stat b { color: var(--text); font-variant-numeric: tabular-nums; }
+.drill-head .chev {
+  font-size: 13px; color: var(--text-mute); transition: transform .2s; flex: none;
+  margin-top: 3px;
+}
+.drill-card.open .drill-head .chev { transform: rotate(180deg); }
+
+.drill-body { display: none; padding: 4px 0 6px; }
+.drill-card.open .drill-body { display: block; }
+
+/* 三级行 */
+.l3-row {
+  padding: 12px 18px 13px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.l3-row:last-child { border-bottom: none; }
+.l3-top {
+  display: flex; align-items: baseline; gap: 10px; margin-bottom: 7px;
+  flex-wrap: wrap;
+}
+.l3-name {
+  font-size: 13px; font-weight: 650; color: var(--text);
+  display: inline-flex; align-items: center; gap: 7px;
+}
+.l3-dot {
+  width: 8px; height: 8px; border-radius: 2px; flex: none;
+}
+.l3-num {
+  font-size: 12.5px; font-weight: 700; color: var(--neg);
+  font-variant-numeric: tabular-nums;
+}
+.l3-pct { font-size: 11.5px; color: var(--text-mute); }
+.l3-bar {
+  height: 5px; background: var(--track); border-radius: 3px; overflow: hidden;
+  margin-bottom: 9px;
+}
+.l3-bar > i { display: block; height: 100%; border-radius: 3px; }
+.l3-desc {
+  font-size: 11.5px; color: var(--text-dim); margin-bottom: 8px;
+  padding-left: 15px; border-left: 2px solid var(--line);
+}
+/* 证据原文 */
+.quotes { display: flex; flex-direction: column; gap: 6px; }
+.quote {
+  font-size: 12px;
+  background: var(--code-bg);
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  padding: 8px 11px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  position: relative;
+  padding-left: 27px;
+}
+.quote::before {
+  content: "\201C";
+  position: absolute; left: 9px; top: 4px;
+  font-size: 17px; color: var(--text-mute); font-family: Georgia, serif;
+}
+.quote .src {
+  display: inline-block; margin-left: 7px; font-size: 10px;
+  color: var(--text-mute); border: 1px solid var(--line);
+  border-radius: 4px; padding: 0 5px; vertical-align: 1px;
+}
+.quote .src.rev { color: #047857; border-color: #bce6d3; }
+
+/* 顶部小结条 */
+.l3-summary {
+  display: flex; flex-wrap: wrap; gap: 10px 26px;
+  padding: 13px 17px;
+  background: linear-gradient(90deg, rgba(220,38,38,.05), transparent 70%);
+  border: 1px solid rgba(220,38,38,.16);
+  border-radius: 10px;
+  margin-bottom: 18px;
+  font-size: 12.5px;
+}
+.l3-summary .it { display: flex; flex-direction: column; gap: 2px; }
+.l3-summary .k { color: var(--text-mute); font-size: 11px; }
+.l3-summary .v { color: var(--text); font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
+
+/* 表格里的 L3 小字 */
+td .c3 {
+  display: block; font-size: 10.5px; color: var(--accent);
+  margin-top: 2px; line-height: 1.35;
+}
+td .c3::before { content: "└ "; color: var(--text-mute); }
+
+/* 让明细表更宽松 */
+.table-scroll.wide { max-height: 720px; }
+.detail-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-dim);
+  background: #fff; border: 1px solid var(--line);
+  border-radius: 8px; padding: 7px 11px; cursor: pointer;
+  margin-left: 4px;
+}
+.detail-toggle:hover { color: var(--text); border-color: #b8c8e0; }
+
+@media (max-width: 960px) {
+  .drill-grid { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>亚马逊退货 &amp; 评论洞察分析 · 可视化报告</title>
+</head>
+<body>
+
+<div id="boot"><div class="spin"></div><div style="color:var(--text-dim);font-size:13px">正在装载数据…</div></div>
+
+<header class="hero">
+  <div class="wrap">
+    <h1>亚马逊退货 &amp; 评论 <span class="accent">洞察分析</span></h1>
+    <div class="meta">
+      <span>数据源 <b>买家之声退货报告</b> + <b>商品买家评论</b></span>
+      <span>原始文本 <b id="m-raw">—</b> 条</span>
+      <span>拆分后观点 <b id="m-total">—</b> 条</span>
+      <span>口径：一条文本含多个独立感受即拆为多条</span>
+      <span>2026-11-06</span>
+    </div>
+  </div>
+</header>
+
+<nav class="anchor">
+  <div class="inner">
+    <a href="#s1" class="active">一、整体摘要</a>
+    <a href="#s2">二、大类分布</a>
+    <a href="#s3">三、二级标签细分</a>
+    <a href="#s4">四、来源差异</a>
+    <a href="#s5">五、明细数据</a>
+    <a href="#s6">六、业务解读</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <!-- ============ 一、整体摘要 ============ -->
+  <section id="s1">
+    <div class="sec-head">
+      <span class="num">01</span>
+      <h2>整体摘要</h2>
+    </div>
+    <p class="sec-sub">
+      所有百分比的分母均在卡片脚注中标明。默认分母为「全部独立观点」。
+    </p>
+
+    <div class="kpi-grid" id="kpi-grid"></div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">情感分布 <span class="tag">分母：全部观点</span></div>
+        <div class="card-desc">负面占绝对多数，反映「已退货人群」的样本特性，不等于整体满意度。</div>
+        <div id="chart-sentiment"></div>
+        <div class="legend" id="legend-sentiment"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">具象度 &amp; 来源构成</div>
+        <div class="card-desc">
+          「有明确具象点」＝提到具体部位或具体现象；空泛评价（如 not good、disappointed）计为无具象点。
+        </div>
+        <div class="grid-2" style="gap:14px">
+          <div id="chart-specific"></div>
+          <div id="chart-source"></div>
+        </div>
+        <div class="insight">
+          评论来源具象率 <b>89.13%</b>，退货来源仅 <b id="ret-spec-rate">—</b>。
+          退货反馈中大量是平台下拉理由，缺乏落点——这是后续归因必须谨慎的原因。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 二、大类分布 ============ -->
+  <section id="s2">
+    <div class="sec-head">
+      <span class="num">02</span>
+      <h2>一级大类分布</h2>
+    </div>
+    <p class="sec-sub">
+      饼图分母＝全部独立观点 <b id="s2-total">—</b> 条。点击扇区可高亮，悬停查看明细。
+    </p>
+
+    <div class="grid-2-wide">
+      <div class="card">
+        <div class="card-title">一级大类整体分布 <span class="tag" id="s2-denom-tag">—</span></div>
+        <div id="chart-pie"></div>
+        <div class="legend" id="legend-pie"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">一级大类汇总表</div>
+        <div class="card-desc">表1 · 占全部观点百分比</div>
+        <table id="table-cat1">
+          <thead>
+            <tr>
+              <th>大类名称</th>
+              <th class="r">条数</th>
+              <th class="r">占全部%</th>
+              <th>占比</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <div class="card-title">二级细分统计 <span class="tag">表2 · 分母：所属一级大类内部</span></div>
+      <div class="card-desc">
+        每个一级大类下的二级标签分布。百分比的分母是该大类内部的条数，不同大类之间不可横向比较。
+      </div>
+      <div id="table-cat2"></div>
+    </div>
+  </section>
+
+  <!-- ============ 三、精细痛点（维度 × 失效模式） ============ -->
+  <section id="s3">
+    <div class="sec-head">
+      <span class="num">03</span>
+      <h2>二级标签细分与原文</h2>
+    </div>
+    <p class="sec-sub">
+      以<b>二级标签</b>为主线（如「支架/指环功能失效」），点开即可看到它的<b>细分表现</b>
+      （撑不住 / 断裂 / 自转 / 卡涩…）和对应的<b>买家原文</b>。
+      细分口径可切换「失效模式 / 三级标签 / 部件维度」三种。
+      分母＝全部负面观点 <b id="s3-neg">—</b> 条。
+    </p>
+
+    <div class="l3-summary" style="margin-bottom:18px">
+      <div class="it"><span class="k">二级标签</span><span class="v" id="kpi-c2">—</span></div>
+      <div class="it"><span class="k">细分失效模式组合</span><span class="v" id="kpi-c2sub">—</span></div>
+      <div class="it"><span class="k">部件维度</span><span class="v" id="kpi-dim">—</span></div>
+      <div class="it"><span class="k">平台下拉项（非自由描述）</span><span class="v" id="kpi-plat">—</span></div>
+    </div>
+
+    <div class="view-tabs" id="view-tabs">
+      <button class="on" data-view="c2">按二级标签（细分 + 原文）</button>
+      <button data-view="dim">按部件维度</button>
+    </div>
+
+    <!-- ========== 视图 A：二级标签细分（默认） ========== -->
+    <div class="view-pane on" id="view-c2">
+      <div class="c2-layout">
+        <div class="c2-side" id="c2-side"></div>
+
+        <div class="c2-main" id="c2-main">
+          <div class="c2-head" id="c2-head"></div>
+
+          <div class="card" style="margin-bottom:14px;padding:16px 20px">
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+              <span style="font-size:14px;font-weight:650">细分统计</span>
+              <div class="view-tabs" id="sub-mode-tabs" style="margin:0">
+                <button class="on" data-mode="mode">按失效模式</button>
+                <button data-mode="cat3">按三级标签</button>
+                <button data-mode="dim">按部件维度</button>
+              </div>
+              <span id="c2-sub-hint" style="font-size:11.5px;color:var(--text-mute)"></span>
+            </div>
+            <div id="c2-subs"></div>
+          </div>
+
+          <div class="card" id="c2-wall-card">
+            <div class="card-title"><span id="c2-wall-title">全部原文</span>
+              <span class="tag" id="c2-wall-count">—</span></div>
+            <div class="card-desc">去重后的买家原始表述，可直接核对，不做任何改写。可搜索、可按来源筛选。</div>
+            <div class="c2-wall-head">
+              <input type="search" id="c2-wall-search" placeholder="搜索原文片段…">
+              <select id="c2-wall-src">
+                <option value="">全部来源</option>
+                <option value="ret">仅退货报告</option>
+                <option value="rev">仅买家评论</option>
+              </select>
+            </div>
+            <div class="c2-wall" id="c2-wall"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 视图 B：部件维度（原 v2，保留） ========== -->
+    <div class="view-pane" id="view-dim">
+    <div class="l3-summary" style="margin-bottom:20px">
+      <div class="it"><span class="k">部件维度</span><span class="v" id="kpi-dim">—</span></div>
+      <div class="it"><span class="k">失效模式组合</span><span class="v" id="kpi-mode">—</span></div>
+      <div class="it"><span class="k">平台下拉项（非自由描述）</span><span class="v" id="kpi-plat">—</span></div>
+    </div>
+
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-title">按部件维度选择 <span class="tag">点击查看该部件的所有失效模式</span></div>
+      <div class="dim-grid" id="dim-grid" style="margin-top:14px;margin-bottom:0"></div>
+    </div>
+
+    <div class="card" style="margin-bottom:18px">
+      <div id="mode-panel"></div>
+    </div>
+
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-title">负面结构总览 <span class="tag">分母：全部负面观点</span></div>
+      <div class="grid-2-wide" style="margin-top:14px">
+        <div>
+          <div id="chart-sunburst"></div>
+          <div class="legend" id="legend-sunburst"></div>
+        </div>
+        <div class="pain-list" id="pain-list"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-title">各维度来源差异 <span class="tag">退货 vs 评论</span></div>
+      <div class="card-desc">按一级大类的痛点分布差异（各来源内部归一）</div>
+      <div id="diff-list"></div>
+    </div>
+
+    <div style="display:none">
+      <div id="drill-grid"></div>
+      <div id="l3-summary"></div>
+    </div>
+
+
+    </div><!-- /view-dim -->
+
+  <!-- ============ 四、来源差异 ============ -->
+  <section id="s4">
+    <div class="sec-head">
+      <span class="num">04</span>
+      <h2>退货来源 vs 评论来源</h2>
+    </div>
+    <p class="sec-sub">
+      两边样本量悬殊（退货 <b id="s4-ret">—</b> 条负面 vs 评论 <b id="s4-rev">—</b> 条负面），
+      因此统一换算为「占该来源内部负面观点的百分比」再比较，不可直接比绝对条数。
+    </p>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">分组柱状图 <span class="tag">各来源内部占比</span></div>
+        <div id="chart-grouped"></div>
+        <div class="legend" id="legend-grouped"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">痛点分布差异 <span class="tag">按部件维度 · 差值为百分点</span></div>
+        <div class="card-desc">上条＝退货来源占比，下条＝评论来源占比（各来源内部归一）</div>
+        <div id="src-bars"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <div class="card-title">退货独有信号</div>
+      <div class="grid-2" style="gap:16px;margin-top:12px">
+        <div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:6px;color:#ff8f8f">
+            ① 预期不符 —— 退货独有
+          </div>
+          <p style="font-size:12.5px;color:var(--text-dim)">
+            退货 <b id=sig1-ret>—</b> vs 评论 <b id=sig1-rev>—</b>。用户在下单时形成错误预期，收货即退货，不进入评论池。
+            这意味着 <b style="color:var(--text)">评论星级无法反映预期管理问题的严重程度</b>。
+          </p>
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:6px;color:#ff8f8f">
+            ② 包装破损 —— 评论中完全缺失
+          </div>
+          <p style="font-size:12.5px;color:var(--text-dim)">
+            <b id=sig2-ret>—</b> vs 评论 <b id=sig2-rev>—</b>（到货破损 <b id=sig2-broke>—</b> 条 + 配件缺失/错发 <b id=sig2-miss>—</b> 条）。
+            收到破损包裹直接退货，不写评论——<b style="color:var(--text)">评论星级低估了到货质量问题</b>。
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 五、明细 ============ -->
+  <section id="s5">
+    <div class="sec-head">
+      <span class="num">05</span>
+      <h2>原始拆分明细</h2>
+    </div>
+    <p class="sec-sub">
+      共 <b id="s5-total">—</b> 条独立观点。点击任意行可展开完整原文。所有观点均为原文截取，未做语义扩充。
+    </p>
+
+    <div class="card">
+      <div class="filters">
+        <input type="search" id="f-search" placeholder="搜索原文片段 / 二级标签…">
+        <select id="f-sent">
+          <option value="">全部情感</option>
+          <option value="负面">负面</option>
+          <option value="中性">中性</option>
+          <option value="正向">正向</option>
+        </select>
+        <select id="f-src">
+          <option value="">全部来源</option>
+          <option value="买家之声退货报告">买家之声退货报告</option>
+          <option value="买家评论">买家评论</option>
+        </select>
+        <select id="f-cat1">
+          <option value="">全部一级分类</option>
+        </select>
+        <label class="chk"><input type="checkbox" id="f-doubt"> 仅看归类存疑</label>
+        <span class="count" id="f-count"></span>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th class="r" style="width:56px">序号</th>
+              <th>原文截取片段</th>
+              <th style="width:64px">情感</th>
+              <th style="width:132px">来源</th>
+              <th style="width:120px">一级分类</th>
+              <th style="width:170px">二级细分</th>
+              <th style="width:170px">失效模式（具体表现）</th>
+              <th style="width:74px">具象点</th>
+            </tr>
+          </thead>
+          <tbody id="detail-body"></tbody>
+        </table>
+      </div>
+
+      <div class="insight warn" style="margin-top:14px">
+        标记 <span class="pill doubt">存疑</span> 的条目（共 <b id="doubt-n">—</b> 条，占
+        <b id="doubt-pct">—</b>）语义模糊、归类需人工复核，不建议单独作为决策依据。
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 六、业务解读 ============ -->
+  <section id="s6">
+    <div class="sec-head">
+      <span class="num">06</span>
+      <h2>业务解读与改善方向</h2>
+    </div>
+    <p class="sec-sub">
+      以下结论基于本次样本（退货 1350 条 / 评论 27 条）。评论样本极小，相关结论仅作方向性参考。
+    </p>
+
+    <div class="insight-grid" id="insight-grid"></div>
+
+    <div class="card" style="margin-top:18px">
+      <div class="card-title">改善方向与优先级</div>
+      <div class="card-desc">按「覆盖负面观点比例」与「可执行性」排序</div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:70px">优先级</th>
+            <th style="width:190px">方向</th>
+            <th>具体动作</th>
+            <th class="r" style="width:110px">覆盖负面占比</th>
+          </tr>
+        </thead>
+        <tbody id="action-body"></tbody>
+      </table>
+    </div>
+
+    <div class="insight warn" style="margin-top:18px">
+      <b>样本局限</b>：评论仅 27 条（92 条观点，占全部观点 3.60%），不足以代表整体口碑；
+      退货数据来自「已退货人群」，天然放大负面。本报告结论应作为
+      <b>改善假设的方向</b>，而非根因定论。
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>数据：买家之声退货报告 1350 条 + 买家评论 27 条</span>
+    <span>拆分后独立观点 2559 条</span>
+    <span>评论 27 条为人工逐句标注，退货经规则引擎拆分后抽样校验</span>
+    <span>生成于 2026-11-06</span>
+  </div>
+</footer>
+
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="drill.css">
+<link rel="stylesheet" href="v2.css">
+<link rel="stylesheet" href="c2.css">
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script src="v2.js"></script>
+<script src="c2.js"></script>
+
+</body>
+</html>
