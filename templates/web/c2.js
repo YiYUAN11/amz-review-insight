@@ -42,11 +42,13 @@
     set('kpi-c2sub', fmt(D.kpi.cat2_sub_count));
 
     renderSide();
-    // 默认选中：条数最多且有多个细分的二级标签（跳过平台理由这类无信息的）
-    const cand = TREE.filter(t =>
-      t.n > 0 && !/平台理由|未细分/.test(t.cat2) &&
-      (t.subcats || []).length > 1);
+    // 默认选中：条数最多且有多个细分的二级标签
+    // 排除「平台理由」「未细分」这类信息量低的桶
+    const isLowInfo = t => /平台理由|未细分|未指明/.test(t.cat2 || '');
+    const cand = TREE.filter(t => t.n > 0 && !isLowInfo(t) &&
+      (t.subcats || []).length >= 2);
     cur = cand.sort((a, b) => b.n - a.n)[0] ||
+          TREE.filter(t => !isLowInfo(t)).sort((a, b) => b.n - a.n)[0] ||
           TREE.slice().sort((a, b) => b.n - a.n)[0] || TREE[0];
     selectCat2(cur);
 

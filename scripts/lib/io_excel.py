@@ -198,5 +198,90 @@ def write(path, data):
         ws5.column_dimensions[col].width = w
     ws5.freeze_panes = 'A4'
 
+    # ============ Sheet6：部件 × 模式 × 来源 交叉表 ============
+    ws6 = wb.create_sheet('交叉表_部件×模式×来源')
+    ws6['A1'] = '部件 × 失效模式 × 来源 交叉表（含「普遍 vs 个案」判定）'
+    ws6['A1'].font = TITLE
+    ws6['A2'] = ('判定口径：**普遍** = 同一模式出现在 ≥3 条不同买家原文，'
+                 '或同时出现在退货报告与买家评论两个来源；'
+                 '**个案** = 单一来源且不同原文 ≤2 条（偶发个例）。'
+                 '优先级综合分 = 条数占比 × (1 + 跨来源加成 0.5 + 多原文加成)。')
+    ws6['A2'].font = Font(size=9, color='5A687C')
+    h6 = ['部件', '失效模式', '具体现象', '条数', '占全部负面%',
+          '涉及原文数', '退货', '评论', '跨来源', '判定', '优先级分',
+          '中文证据', '英文证据']
+    for j, h in enumerate(h6, start=1):
+        c = ws6.cell(row=4, column=j, value=h)
+        c.fill = HDR
+        c.font = HF
+        c.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        c.border = BD
+    r = 5
+    for x in data.get('cross', []):
+        qs = x.get('quotes') or []
+        vals = [x['part'], x['mode'], x.get('desc') or '', x['n'], x['pct'],
+                x['docs'], x['ret'], x['rev'],
+                '是' if x['cross_source'] else '否', x['kind'],
+                x.get('score', 0)]
+        for j, v in enumerate(vals, start=1):
+            cell = ws6.cell(row=r, column=j, value=v)
+            cell.border = BD
+            cell.alignment = Alignment(vertical='top', wrap_text=(j in (2, 3, 12, 13)))
+        if x['kind'] == '普遍':
+            ws6.cell(row=r, column=10).fill = PatternFill('solid', fgColor='FCE4E4')
+            ws6.cell(row=r, column=10).font = Font(bold=True, color='B42318')
+        else:
+            ws6.cell(row=r, column=10).fill = PatternFill('solid', fgColor='E8F0FE')
+            ws6.cell(row=r, column=10).font = Font(color='1F4E79')
+        if qs:
+            ws6.cell(row=r, column=12, value=qs[0].get('zh', ''))
+            ws6.cell(row=r, column=13, value=qs[0].get('t', ''))
+        r += 1
+    for col, w in {'A': 15, 'B': 18, 'C': 38, 'D': 7, 'E': 12, 'F': 10,
+                   'G': 7, 'H': 7, 'I': 9, 'J': 8, 'K': 10,
+                   'L': 30, 'M': 44}.items():
+        ws6.column_dimensions[col].width = w
+    ws6.freeze_panes = 'A5'
+
+    # ============ Sheet7：优先级行动清单 ============
+    ws7 = wb.create_sheet('优先级行动清单')
+    ws7['A1'] = '优先级行动清单（Top 15，含普遍/个案判定）'
+    ws7['A1'].font = TITLE
+    ws7['A2'] = ('综合分 = 条数占比 × (1 + 跨来源加成 0.5 + 多原文加成)。'
+                 '同一问题同时出现在退货与评论两个来源时，优先级更高。')
+    ws7['A2'].font = Font(size=9, color='5A687C')
+    h7 = ['优先级', '部件', '失效模式', '条数', '占全部负面%', '涉及原文数',
+          '跨来源', '判定', '综合分', '建议动作', '中文证据', '英文证据']
+    for j, h in enumerate(h7, start=1):
+        c = ws7.cell(row=4, column=j, value=h)
+        c.fill = HDR
+        c.font = HF
+        c.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        c.border = BD
+    r = 5
+    for i, x in enumerate(data.get('priority', []), 1):
+        qs = x.get('quotes') or []
+        if x['cross_source']:
+            action = '优先立项：退货与评论双来源共现，属结构性问题'
+        elif x['kind'] == '普遍':
+            action = '列入改进：单一来源但多买家共现，需产品侧确认'
+        else:
+            action = '观察项：偶发个例，先收集更多样本再判断'
+        vals = [i, x['part'], x['mode'], x['n'], x['pct'], x['docs'],
+                '是' if x['cross_source'] else '否', x['kind'],
+                x.get('score', 0), action]
+        for j, v in enumerate(vals, start=1):
+            cell = ws7.cell(row=r, column=j, value=v)
+            cell.border = BD
+            cell.alignment = Alignment(vertical='top', wrap_text=(j in (2, 3, 10, 11, 12)))
+        if qs:
+            ws7.cell(row=r, column=11, value=qs[0].get('zh', ''))
+            ws7.cell(row=r, column=12, value=qs[0].get('t', ''))
+        r += 1
+    for col, w in {'A': 8, 'B': 15, 'C': 18, 'D': 7, 'E': 12, 'F': 10,
+                   'G': 9, 'H': 8, 'I': 10, 'J': 40, 'K': 30, 'L': 44}.items():
+        ws7.column_dimensions[col].width = w
+    ws7.freeze_panes = 'A5'
+
     wb.save(path)
     return path

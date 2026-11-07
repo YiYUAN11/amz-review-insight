@@ -202,12 +202,14 @@
     D = window.__INSIGHT_DATA__;
     if (!D.dims) { console.warn('旧版数据，跳过 v2 渲染'); return; }
 
-    // 修正 KPI 里维度数
+    // 修正 KPI 里维度数（s2 的 l3-summary 与 s3 的部件维度视图各有一组 id）
     const k = D.kpi;
     const setTxt = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
     setTxt('kpi-dim', fmt(k.dim_count));
     setTxt('kpi-mode', fmt(k.mode_count));
     setTxt('kpi-plat', fmt(k.platform_cnt));
+    setTxt('kpi-dim-c2', fmt(k.dim_count));
+    setTxt('kpi-plat-c2', fmt(k.platform_cnt));
 
     curDim = D.dims.find(d => d.dim !== '平台理由').dim;
     renderDimGrid();

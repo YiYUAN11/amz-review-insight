@@ -311,7 +311,8 @@ svg text { font-family: inherit; }
   font-size: 15px; font-weight: 700; color: var(--neg);
   font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right;
 }
-.pain-val small { display: block; font-size: 10.5px; color: var(--text-mute); font-weight: 500; }
+.pain-val small { display: block; font-size: 10.5px; color: var(--text-mute); font-weight: 500; margin-top: 1px; }
+.pain-val small::before { content: "\A"; white-space: pre; }
 
 /* ---------- 洞察卡 ---------- */
 .insight-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }

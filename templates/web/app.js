@@ -33,8 +33,9 @@
     if (txt !== undefined) e.textContent = txt;
     return e;
   };
+  const UNSPEC = '未指明（原文无具体落点）';
   const fmt = n => (n == null ? '—' : n.toLocaleString('en-US'));
-  const pct = n => (n == null ? '—' : n.toFixed(2) + '%');
+  const pct = n => (n == null || !isFinite(n) ? '—' : n.toFixed(2) + '%');
   const esc = s => String(s).replace(/[&<>"']/g, m =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 
@@ -237,8 +238,8 @@
     });
 
     const data2 = [
-      { name: '退货报告', n: k.ret_op },
-      { name: '买家评论', n: k.rev_op }
+      { name: '退货报告', n: k.ret_op || 0 },
+      { name: '买家评论', n: k.rev_op || 0 }
     ];
     const colors2 = { '退货报告': C.negDeep, '买家评论': C.teal };
     donut('#chart-source', data2, {
@@ -246,10 +247,25 @@
       colors: colors2, labelMin: 20
     });
 
-    // 退货来源具象率
+    // 退货来源具象率（该来源没有数据时显示「—」，不显示 NaN）
     const retSpec = D.detail.filter(d => d.src === '买家之声退货报告');
-    const rp = retSpec.filter(d => d.spec).length / retSpec.length * 100;
+    const revSpec = D.detail.filter(d => d.src !== '买家之声退货报告');
+    const rp = retSpec.length
+      ? retSpec.filter(d => d.spec).length / retSpec.length * 100
+      : null;
+    const vp = revSpec.length
+      ? revSpec.filter(d => d.spec).length / revSpec.length * 100
+      : null;
     $('#ret-spec-rate').textContent = pct(rp);
+    const revEl = document.getElementById('rev-spec-rate');
+    if (revEl) revEl.textContent = pct(vp);
+    // 退货来源没有样本时，换一句说明，不说「退货反馈中大量是平台下拉理由」
+    const noteEl = document.getElementById('spec-rate-note-text');
+    if (noteEl) {
+      noteEl.textContent = retSpec.length
+        ? '退货反馈中大量是平台下拉理由，缺乏落点——这是后续归因必须谨慎的原因。'
+        : '本次数据仅包含评论来源（无退货报告样本），退货侧具象率暂不可得。';
+    }
   }
 
   function legend(sel, data, colors, total) {
@@ -551,7 +567,7 @@
     box.innerHTML = '';
     D.neg_top.forEach((d, i) => {
       const item = el('div', 'pain-item' + (i < 3 ? ' top' : ''));
-      const pname = d.mode || d.name || "—";
+      const pname = d.name || d.mode || "—";
       const pmeta = d.dim ? (d.dim + (d.phen ? " · " + d.phen : "")) : (d.cat1 || "");
       item.innerHTML = `
         <div class="pain-rank">${i + 1}</div>
@@ -854,80 +870,129 @@
   /* ==========================================================================
      业务解读
      ========================================================================== */
+  /* ==========================================================================
+     业务解读：全部从数据推导，不写死任何品类结论
+     ========================================================================== */
   function renderInsights() {
     const k = D.kpi;
-    const negN = k.negN;
-    // 从数据取值，避免硬编码漂移
-    const g = n => D.neg_tree.find(x => x.name === n) || { n: 0, pct: 0, children: [] };
-    const sub = (n) => {
-      for (const grp of D.neg_tree) {
-        const c = grp.children.find(x => x.name === n);
-        if (c) return c;
-      }
-      return { n: 0, pct_in_cat1: 0, pct_of_neg: 0 };
-    };
-    const gListing = g('Listing预期不符');
-    const gMaterial = g('产品做工&材质');
-    const gStruct = g('结构/功能配件');
-    const gShip = g('包装物流');
-    const sPlate = sub('与描述预期不符（平台理由·泛称）');
-    const sThin = sub('材质单薄/廉价感（感知做工）');
-    const sBroke = sub('易断裂/破损（结构脆弱）');
-    const sHinge = sub('铰链/中轴区域无防护');
-    const sStand = sub('支架/指环功能失效');
-    const sScreen = sub('屏幕保护膜/前盖不兼容');
-    const sMag = sub('磁吸/无线充电不兼容');
-    const srcRow = n => D.src_cmp.find(x => x.name === n) || { ret: 0, rev: 0, diff: 0 };
-    const rListing = srcRow('Listing预期不符');
-    const rShip = srcRow('包装物流');
+    const negN = k.negN || 1;
 
-    const cards = [
-      {
-        cls: 'red', icon: '⚠', title: 'Listing 预期管理失效（第一痛点）',
-        body: [`共 <span class="hl">${fmt(gListing.n)} 条</span>，占全部负面 <span class="hl">${pct(gListing.pct)}</span>。
-                其中「与描述预期不符（平台理由·泛称）」<span class="hl">${fmt(sPlate.n)} 条</span>，
-                占该大类 ${pct(sPlate.pct_in_cat1)}。`,
-               `退货来源 ${pct(rListing.ret)} vs 评论来源 ${pct(rListing.rev)}，
-                差 <span class="hl">${rListing.diff > 0 ? '+' : ''}${rListing.diff.toFixed(2)} 个百分点</span>。
-                问题发生在「购买前的预期形成」环节，而非使用后的口碑环节。`]
-      },
-      {
-        cls: 'red', icon: '◈', title: '材质单薄与结构脆弱',
-        body: [`共 <span class="hl">${fmt(gMaterial.n)} 条</span>，占全部负面 <span class="hl">${pct(gMaterial.pct)}</span>。
-                「材质单薄/廉价感」${fmt(sThin.n)} 条（占该大类 ${pct(sThin.pct_in_cat1)}）、
-                「易断裂/破损」${fmt(sBroke.n)} 条（${pct(sBroke.pct_in_cat1)}），
-                两者合计 <span class="hl">${pct(sThin.pct_in_cat1 + sBroke.pct_in_cat1)}</span>。`,
-               `本质是「薄壳轻量化」定位与「折叠屏高价设备需强防护」的用户预期之间的冲突。`]
-      },
-      {
-        cls: 'amber', icon: '◎', title: '铰链/中轴无防护',
-        body: [`共 <span class="hl">${fmt(sHinge.n)} 条</span>，是「结构/功能配件」下第一大二级痛点，
-                占该大类 <span class="hl">${pct(sHinge.pct_in_cat1)}</span>。`,
-               `大量表述为「以为是有的、结果没有」（如 "thought it had hinge protection"），
-                说明这不只是产品缺配，更是 <span class="hl">信息未披露</span>。`]
-      },
-      {
-        cls: 'red', icon: '⟳', title: '配件功能可靠性',
-        body: [`支架/指环失效 <span class="hl">${fmt(sStand.n)} 条</span>（占结构类 ${pct(sStand.pct_in_cat1)}）、
-                贴膜不兼容 <span class="hl">${fmt(sScreen.n)} 条</span>（${pct(sScreen.pct_in_cat1)}）、
-                磁吸充电不兼容 <span class="hl">${fmt(sMag.n)} 条</span>（${pct(sMag.pct_in_cat1)}）。`,
-               `这三项是评论侧最集中的吐槽：都是「要用一段时间才暴露」的问题。`]
-      },
-      {
-        cls: 'amber', icon: '▤', title: '包装/物流破损',
-        body: [`退货来源 <span class="hl">${pct(rShip.ret)}</span>（到货破损 + 配件缺失/错发），
-                评论来源 <span class="hl">${pct(rShip.rev)}</span>。`,
-               `收到破损包裹的用户直接退货、不写评论，因此
-                <span class="hl">评论星级低估了到货质量问题的规模</span>。`]
-      },
-      {
-        cls: 'green', icon: '✓', title: '样本局限（必须标注）',
-        body: [`评论仅 <span class="hl">${fmt(k.raw_rev)} 条</span>（${fmt(k.rev_op)} 条观点，占全部观点 ${pct(k.rev_pct)}），
-                不足以代表整体口碑；退货数据来自「已退货人群」，天然放大负面。`,
-               `另有 <span class="hl">${fmt(k.doubt)} 条</span>（${pct(k.doubt_pct)}）语义模糊已标记「归类存疑」，需人工复核。
-                结论应作为 <span class="hl">改善假设的方向</span>，而非根因定论。`]
-      }
-    ];
+    // 一级大类（负面）
+    const cat1s = (D.cat1_neg || []).slice().sort((a, b) => b.n - a.n);
+    const top1 = cat1s[0] || { name: '—', n: 0, pct: 0 };
+
+    // 失效模式 Top（部件 × 模式）
+    const modes = [];
+    (D.dims || []).forEach(d => (d.modes || []).forEach(m => {
+      modes.push({ part: d.dim, mode: m.mode, phen: m.phen || '', n: m.n,
+                   pct: m.pct_of_neg, ret: m.ret, rev: m.rev });
+    }));
+    modes.sort((a, b) => b.n - a.n);
+    const topModes = modes.filter(m => m.mode !== UNSPEC).slice(0, 3);
+    const topPart = (D.dims || [])[0] || { dim: '—', n: 0, pct_of_neg: 0 };
+
+    // 跨来源差异最大的一级大类（单一来源时无差异可言）
+    const srcs = (D.src_cmp || []).slice().sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+    const twoSources = (k.ret_op > 0) && (k.rev_op > 0);
+    const srcTop = srcs[0] || { name: '—', ret: 0, rev: 0, diff: 0 };
+
+    // 普遍 vs 个案（由 cross 表给出）
+    const cross = D.cross || [];
+    const wide = cross.filter(c => c.kind === '普遍');
+    const wideN = wide.reduce((s, c) => s + c.n, 0);
+
+    const cards = [];
+
+    cards.push({
+      cls: 'red', icon: '⚠',
+      title: '首要痛点：' + top1.name,
+      body: [
+        `共 <span class="hl">${fmt(top1.n)} 条</span>负面观点，占全部负面 <span class="hl">${pct(top1.pct)}</span>，
+         是当前最集中的问题大类。`,
+        `其下最大的具体失效模式是「<span class="hl">${esc(topModes[0] ? topModes[0].mode : '—')}</span>」
+         （${fmt(topModes[0] ? topModes[0].n : 0)} 条，占全部负面 ${pct(topModes[0] ? topModes[0].pct : 0)}），
+         落在部件「${esc(topModes[0] ? topModes[0].part : '—')}」。`
+      ]
+    });
+
+    if (topModes.length >= 2) {
+      cards.push({
+        cls: 'red', icon: '◈',
+        title: '失效模式 Top 3',
+        body: [
+          topModes.map(m => `「<span class="hl">${esc(m.mode)}</span>」${fmt(m.n)} 条
+            （${pct(m.pct)}，${esc(m.part)}）`).join('；') + '。',
+          `三者合计 ${fmt(topModes.reduce((s, m) => s + m.n, 0))} 条，
+           占全部负面 ${pct(topModes.reduce((s, m) => s + m.pct, 0))}。`
+        ]
+      });
+    }
+
+    cards.push({
+      cls: 'amber', icon: '◎',
+      title: '部件集中度：' + topPart.dim,
+      body: [
+        `「${esc(topPart.dim)}」相关负面 <span class="hl">${fmt(topPart.n)} 条</span>，
+         占全部负面 <span class="hl">${pct(topPart.pct_of_neg)}</span>，是最需要优先改动的部件。`,
+        `该部件下细分出 ${fmt((topPart.modes || []).length)} 种失效模式，
+         建议逐条确认是设计问题还是工艺问题。`
+      ]
+    });
+
+    if (twoSources) {
+      cards.push({
+        cls: 'amber', icon: '⟳',
+        title: '来源差异最大：' + srcTop.name,
+        body: [
+          `退货来源内部占比 <span class="hl">${pct(srcTop.ret)}</span>，
+           评论来源内部占比 <span class="hl">${pct(srcTop.rev)}</span>，
+           差 <span class="hl">${srcTop.diff > 0 ? '+' : ''}${srcTop.diff.toFixed(2)} 个百分点</span>。`,
+          srcTop.diff >= 0
+            ? `该问题在<b>退货人群</b>中更集中，说明评论星级会低估它的实际规模——
+               收到货就用、发现不对就直接退货的人，不会写评论。`
+            : `该问题在<b>评论人群</b>中更集中，说明它更像是「用了之后才暴露」的问题，
+               退货人群未必会写进理由。`
+        ]
+      });
+    } else {
+      cards.push({
+        cls: 'amber', icon: '⟳',
+        title: '来源差异：本次数据不可比',
+        body: [
+          `本次仅包含<b>${k.ret_op > 0 ? '买家之声退货报告' : '买家评论'}</b>一个来源
+           （${fmt(k.ret_op > 0 ? k.raw_ret : k.raw_rev)} 条原文），
+           无法比较「退货人群 vs 评论人群」的痛点分布差异。`,
+          `同时提供两个来源的数据后，这里会自动给出差异最大的问题大类。`
+        ]
+      });
+    }
+
+    if (wide.length) {
+      cards.push({
+        cls: 'red', icon: '▤',
+        title: '普遍问题 vs 个案问题',
+        body: [
+          `判定为 <span class="hl">普遍</span>（≥3 条不同原文，或退货与评论双来源出现）的有
+           <span class="hl">${fmt(wide.length)} 类</span>，共 ${fmt(wideN)} 条，
+           占全部负面 ${pct(wideN / negN * 100)}——属于结构性问题，应优先立项。`,
+          `其余为个案（偶发），建议先积累样本再判断。`
+        ]
+      });
+    }
+
+    cards.push({
+      cls: 'green', icon: '✓',
+      title: '样本局限（必须标注）',
+      body: [
+        `评论 <span class="hl">${fmt(k.raw_rev)} 条</span>（${fmt(k.rev_op)} 条观点，
+         占全部观点 ${pct(k.rev_pct)}）`
+        + (k.raw_ret > 0
+          ? `；退货来源 <span class="hl">${fmt(k.raw_ret)} 条</span>，天然放大负面。`
+          : `；本次<b>未包含退货报告</b>，无法覆盖「收货即退货」人群的问题。`),
+        `另有 <span class="hl">${fmt(k.doubt)} 条</span>（${pct(k.doubt_pct)}）语义模糊已标记「归类存疑」，
+         需人工复核。结论应作为 <span class="hl">改善假设的方向</span>，而非根因定论。`
+      ]
+    });
 
     const box = $('#insight-grid');
     box.innerHTML = '';
@@ -937,61 +1002,58 @@
         c.body.map(p => `<p>${p}</p>`).join('');
       box.appendChild(d);
     });
+
+    // 章节说明与样本局限文案（数据驱动）
+    const set = (id, v) => { const e = document.getElementById(id); if (e) e.innerHTML = v; };
+    set('s6-ret', fmt(k.raw_ret));
+    set('s6-rev', fmt(k.raw_rev));
+    set('s6-limit',
+      `<b>样本局限</b>：评论 ${fmt(k.raw_rev)} 条（${fmt(k.rev_op)} 条观点，占全部观点 ${pct(k.rev_pct)}）；
+       退货数据来自「已退货人群」，天然放大负面。另有 ${fmt(k.doubt)} 条（${pct(k.doubt_pct)}）
+       语义模糊已标记「归类存疑」，需人工复核。本报告结论应作为
+       <b>改善假设的方向</b>，而非根因定论。`);
+    set('f-ret', fmt(k.raw_ret));
+    set('f-rev', fmt(k.raw_rev));
+    set('f-total', fmt(k.total));
+    set('f-date', '生成于 ' + (k.date || new Date().toISOString().slice(0, 10)));
+    const mdate = document.getElementById('m-date');
+    if (mdate) mdate.textContent = k.date || new Date().toISOString().slice(0, 10);
   }
 
+  /* ---------------- 改善方向与优先级（数据驱动） ---------------- */
   function renderActions() {
-    const negN = D.kpi.negN;
-    const subN = (n) => {
-      for (const grp of D.neg_tree) {
-        const c = grp.children.find(x => x.name === n);
-        if (c) return c.n;
-      }
-      return 0;
-    };
-    const grpN = (n) => (D.neg_tree.find(x => x.name === n) || { n: 0 }).n;
-    const p = n => n / negN * 100;
+    const negN = D.kpi.negN || 1;
+    const cross = D.cross || [];
+    const top = cross.filter(c => c.mode !== UNSPEC).slice()
+      .sort((a, b) => b.score - a.score).slice(0, 6);
 
-    const covListing = p(grpN('Listing预期不符') + subN('尺寸/机型不适配'));
-    const covStruct = p(subN('易断裂/破损（结构脆弱）') + subN('材质单薄/廉价感（感知做工）'));
-    const covHinge = p(subN('铰链/中轴区域无防护'));
-    const covShip = p(grpN('包装物流'));
-
-    const actions = [
-      {
-        p: 'P0', dir: 'Listing 前置披露',
-        body: '① 主图/视频明确标注「本款不含铰链保护」，A+ 页对比含/不含铰链护盖两条产品线；' +
-              '② 补上「360° 旋转磁吸支架」「兼容 MagSafe 充电」的真实边界条件；' +
-              '③ 删除/弱化「military grade / full protection」等易被判虚假宣传的表述；' +
-              '④ 增加机型适配对照表。',
-        cov: covListing
-      },
-      {
-        p: 'P0', dir: '结构可靠性专项',
-        body: '① 中框与铰链侧壁加厚/加筋，解决「易断裂」；② 支架转轴改阻尼+金属件；' +
-              '③ 前盖与贴膜配合公差重做；④ 磁吸环位置与厚度复核。',
-        cov: covStruct
-      },
-      {
-        p: 'P1', dir: '铰链防护产品线',
-        body: '该品类存在明确的「要防护」需求（评论侧亦有提及），建议单独开发含中轴护盖的 SKU，' +
-              '与现款轻薄线并行，而非二选一。',
-        cov: covHinge
-      },
-      {
-        p: 'P1', dir: '包装与到货质量',
-        body: '加固外箱抗压、增加内衬固定；把屏幕保护膜/钢化膜列入出货清单核对项。',
-        cov: covShip
-      },
-      {
-        p: 'P2', dir: '评论侧运营',
-        body: '对已退货用户定向回访；对高星评价做追问式引导（邀请描述握持手感、支架使用场景），' +
-              '把「用了才知道」的功能问题提前暴露在评论中，补足评论样本。',
-        cov: null
+    const actions = top.map((c, i) => {
+      const p = i === 0 ? 'P0' : i <= 2 ? 'P1' : i <= 4 ? 'P2' : 'P3';
+      let body;
+      if (c.cross_source) {
+        body = `该问题在<b>退货报告与买家评论两个来源同时出现</b>（退货 ${fmt(c.ret)} 条 / 评论 ${fmt(c.rev)} 条），
+                说明不是个别买家的主观感受，而是产品侧的共性问题。建议：① 复现该场景确认根因；
+                ② 给出明确的修复方案与时间点；③ 在详情页补充边界说明，减少误购。`;
+      } else if (c.kind === '普遍') {
+        body = `该问题在单一来源中出现，但已涉及 <b>${fmt(c.docs)} 条不同买家原文</b>，具备普遍性。
+                建议：① 归入产品需求池按部件（${esc(c.part)}）排期；
+                ② 若短期内不能改，先在文案与包装上给出使用提示。`;
+      } else {
+        body = `该问题目前仅涉及 <b>${fmt(c.docs)} 条原文</b>，属于偶发个例。
+                建议先继续观察，暂不投入改造资源；若后续样本增加则升级优先级。`;
       }
-    ];
+      return { p, dir: c.mode + '（' + c.part + '）', body, cov: c.pct };
+    });
 
     const tb = $('#action-body');
     tb.innerHTML = '';
+    if (!actions.length) {
+      const tr = el('tr');
+      tr.innerHTML = `<td colspan="4" style="color:var(--text-mute)">
+        本次未识别到具体失效模式，无法生成行动建议（请检查 taxonomy 配置或补充 failure_modes）。</td>`;
+      tb.appendChild(tr);
+      return;
+    }
     actions.forEach(a => {
       const tr = el('tr');
       const pc = a.p === 'P0' ? C.neg : a.p === 'P1' ? C.warn : C.neu;
@@ -1004,31 +1066,54 @@
     });
   }
 
-  /* ---------------- 退货独有信号（动态填充） ---------------- */
+  /* ---------------- 来源差异信号（自动识别，不预设结论） ---------------- */
   function renderUniqueSignals() {
-    const get = n => D.src_cmp.find(x => x.name === n) || { ret: 0, rev: 0, diff: 0 };
-    const l = get('Listing预期不符');
-    const sh = get('包装物流');
-    const subN = n => {
-      for (const grp of D.neg_tree) {
-        const c = grp.children.find(x => x.name === n);
-        if (c) return c.n;
-      }
-      return 0;
-    };
     const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    const setHtml = (id, v) => { const e = document.getElementById(id); if (e) e.innerHTML = v; };
+    const rows = (D.src_cmp || []).slice();
+    const k = D.kpi || {};
+    const onlyOne = !(k.ret_op > 0) || !(k.rev_op > 0);
 
-    set('uniq-l-ret', pct(l.ret));
-    set('uniq-l-rev', pct(l.rev));
-    set('uniq-l-diff', (l.diff > 0 ? '+' : '') + l.diff.toFixed(2) + ' 个百分点');
+    if (onlyOne) {
+      // 只有单一来源时，来源差异无从谈起 —— 不硬凑结论
+      setHtml('sig1-title', '① 来源差异不可比');
+      setHtml('sig1-name', '—');
+      set('sig1-ret', '—');
+      set('sig1-rev', '—');
+      setHtml('sig1-note', '本次数据只包含<b>单一来源</b>（'
+        + (k.ret_op > 0 ? '仅退货报告' : '仅买家评论')
+        + '），无法比较两个来源的痛点分布差异。需要同时提供退货报告与评论才能得出该结论。');
+      setHtml('sig2-title', '② 来源差异不可比');
+      setHtml('sig2-name', '—');
+      set('sig2-ret', '—');
+      set('sig2-rev', '—');
+      setHtml('sig2-note', '补充另一来源的数据后，此处会自动给出「哪个问题更偏向退货人群 / 更偏向评论人群」的对比。');
+      return;
+    }
 
-    set('sig1-ret', pct(l.ret));
-    set('sig1-rev', pct(l.rev));
+    const byRet = rows.slice().sort((a, b) => b.ret - a.ret)[0];
+    const byRev = rows.slice().sort((a, b) => b.rev - a.rev)[0];
 
-    set('sig2-ret', pct(sh.ret));
-    set('sig2-rev', sh.rev > 0 ? pct(sh.rev) : '0 条');
-    set('sig2-broke', fmt(subN('到货已破损（平台理由·未指明部位）')));
-    set('sig2-miss', fmt(subN('包装/配件缺失或错发')));
+    if (byRet) {
+      setHtml('sig1-title', '① 退货来源占比最高的一级大类');
+      set('sig1-name', byRet.name);
+      set('sig1-ret', pct(byRet.ret));
+      set('sig1-rev', pct(byRet.rev));
+      setHtml('sig1-note', byRet.diff >= 0
+        ? `在<b>退货人群</b>中更集中（差 ${byRet.diff.toFixed(2)} 个百分点）。
+           收货即退货的用户不会写评论，因此<b>评论星级会低估这类问题的实际规模</b>。`
+        : `在<b>评论人群</b>中更集中，属于「用了之后才暴露」的问题。`);
+    }
+    if (byRev) {
+      setHtml('sig2-title', '② 评论来源占比最高的一级大类');
+      set('sig2-name', byRev.name);
+      set('sig2-ret', pct(byRev.ret));
+      set('sig2-rev', pct(byRev.rev));
+      setHtml('sig2-note', byRev.diff <= 0
+        ? `在<b>评论人群</b>中更集中（差 ${Math.abs(byRev.diff).toFixed(2)} 个百分点）。
+           这类问题退货人群未必写进理由，需要靠评论侧才能观察到。`
+        : `在<b>退货人群</b>中更集中，说明该问题以「直接退货」的形式离开。`);
+    }
   }
 
   /* ==========================================================================

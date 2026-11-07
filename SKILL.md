@@ -56,9 +56,22 @@ python scripts/discover.py --config taxonomy.json --out candidates.json
 复制 `examples/taxonomy.example.json` 改写。详见 `references/taxonomy-guide.md`。
 
 三块必填：
-- `parts`：本品类的部件（中文名 + 英文别名 + 归属一级大类 + 允许的失效模式）
+- `parts`：本品类的部件（中文名 + 英文别名 + 归属一级大类 + 该部件**专属**的失效模式）
 - `failure_modes`：失效现象库（断裂/松动/撑不住/过薄/不贴合/充不进电…跨品类复用）
 - `inputs`：文件路径
+
+**通用失效模式**（断裂脱落、贴合不好、做工粗糙…）放进 `failure_modes`，
+再用 `global_modes: ["断裂脱落", "不贴合", ...]` 声明它们对所有部件生效；
+`parts[].modes` 只写**该部件特有**的模式。这样配置量能减少一半以上。
+
+### 第 3.5 步 · 配置自检（必做，30 秒）
+
+```bash
+python scripts/validate_taxonomy.py --config taxonomy.json
+```
+
+检查结构完整性、**模式引用是否存在**（静默失效的高发点）、正则能否编译、
+一级大类是否合法、命中率预检、词典规模。有 ERROR 必须先修再往下跑。
 
 ### 第 4 步 · 跑全流程
 
@@ -68,10 +81,26 @@ python scripts/run.py --config taxonomy.json --out-dir ./output --title "报告�
 
 产出（都在 `--out-dir`）：
 - `*_可视化.html` — 单文件网页，离线可开，白天主题，中英对照
-- `*_洞察分析.xlsx` — 5 个工作表：二级标签细分 / 总览 / 部件维度 / 原文证据墙 / 全量明细
-- `*_分析报告.md` — Markdown 报告
+- `*_洞察分析.xlsx` — 7 个工作表：二级标签细分 / 总览 / 部件维度 / 原文证据墙 /
+  全量明细 / **交叉表_部件×模式×来源** / **优先级行动清单**
+- `*_分析报告.md` — Markdown 报告（含「普遍 vs 个案」判定与优先级）
 
-### 第 5 步 · 复核并迭代（必做）
+### 第 5 步 · 翻译长句（可选但强烈建议）
+
+规则翻译只覆盖**短评价句**（≤8 词）。长句交给 Agent 翻：
+
+```bash
+# ① 导出待翻译清单（JSONL）
+python scripts/run.py --config taxonomy.json --out-dir ./output --export-zh-todo zh_todo.jsonl
+# ② Agent 逐条填好 "zh" 字段，另存 zh_map.jsonl
+# ③ 回灌译文后重新出报告
+python scripts/run.py --config taxonomy.json --out-dir ./output --zh zh_map.jsonl
+```
+
+**不要**用逐词拼的规则翻译长句——实测会产生 70%+ 的中英混排，
+比直接保留英文更糟。宁可高质中文，要么忠实英文，不要「看着像中文读不通」。
+
+### 第 6 步 · 复核并迭代（必做）
 
 ```bash
 python scripts/run.py --config taxonomy.json --out-dir ./output --audit
@@ -80,6 +109,25 @@ python scripts/run.py --config taxonomy.json --out-dir ./output --audit
 `--audit` 随机抽样 60 条逐条打印 `原文 → 归类`，并统计未归类比例。
 **Agent 读这些样本，修正 taxonomy 后重跑**，直到未归类占比降到可接受水平。
 规则写错的代价是整份报告失真，这一步不能跳。
+
+### 第 7 步 · 质量门禁（交付前）
+
+```bash
+python scripts/run.py --config taxonomy.json --out-dir ./output --strict
+```
+
+`--strict` 会打印质量评估并在不达标时返回非 0 退出码：
+
+| 指标 | 阈值 | 不达标怎么办 |
+|---|---|---|
+| 未归类负面占比 | ≤ 25% | 补 `failure_modes` 的 patterns |
+| 识别出具体部件 | 越高越好 | 补 `parts` 的 aliases |
+| 命中具体失效模式 | 越高越好 | 同上 |
+| 译文覆盖率 | ≥ 60% | 用 `--export-zh-todo` 补翻 |
+| 中英混排占比 | ≤ 15% | 检查是否误用规则翻译长句 |
+
+> 指标口径：**部件识别率 / 模式命中率** 的分母是**非平台理由**的负面观点数，
+> 平台下拉理由（无具体落点）不参与归因。
 
 ## 标签体系结构
 
@@ -108,11 +156,12 @@ python scripts/run.py --config taxonomy.json --out-dir ./output --audit
 
 ```
 scripts/run.py                 端到端主流程
+scripts/validate_taxonomy.py   配置自检（跑之前先跑它）
 scripts/discover.py            自动提炼部件候选
 scripts/lib/engine.py          拆分/分类/统计引擎
-scripts/lib/discover.py        候选挖掘算法
+scripts/lib/discover_lib.py    候选挖掘算法
 scripts/lib/dict_zh.py         通用英中词典
-scripts/lib/translate.py       翻译器
+scripts/lib/translate.py       翻译器（短句规则 + 长句回灌）
 scripts/lib/io_html.py         网页输出
 scripts/lib/io_excel.py        Excel 输出
 scripts/lib/io_md.py           报告输出
@@ -128,10 +177,21 @@ examples/                      可直接改的 taxonomy 样例
 词典驱动（`scripts/lib/dict_zh.py`），只覆盖电商通用词。
 品类专属词汇补到 `taxonomy.json` 的 `extra_translations`。
 
+**翻译分工**：短评价句（≤8 词）走规则翻译；长句走 Agent 回灌
+（`--export-zh-todo` → Agent 填 `zh` → `--zh` 回灌）。
+理由见「常见坑」最后一条。
+
 ## 常见坑
 
 - **文本列选错**：退货报告里「反馈内容」和「商品标题」都是长文本。用 `--probe` 看候选，
   在 `text_columns` 里显式指定。
 - **评论表混了多列**：星级列用于辅助情感判定，脚本会自动找 `星级/rating/star/score`。
+- **说明页混进数据**：卖家精灵导出常带 `Note` 工作表（客服电话/插件指南），
+  脚本会自动跳过；若没跳过，在 `text_columns` 里排除该表名。
 - **部件别名漏了**：买家可能写「magsafe」「磁吸」「MagSafe 环」，`aliases` 要把各种写法都列上。
 - **模式被部件抢走**：用 `parts[].modes` 限定某部件只可能出现的模式，避免误配。
+- **`parts[].modes` 引用了不存在的模式**：不会报错，只会永远匹配不上——
+  这就是 `validate_taxonomy.py` 存在的原因。
+- **叙述句被当成观点**：「I've used other cases…」「I came from OtterBox…」是背景交代，
+  不是对本品的评价。引擎已内置叙述句过滤，但仍要用 `--audit` 抽查确认。
+- **长句用规则翻译**：会产生大量中英混排（实测 70%+）。长句必须走 Agent 回灌。

@@ -15,14 +15,15 @@ import random
 import re
 import sys
 from collections import Counter, defaultdict
+from datetime import datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, 'lib'))
 sys.path.insert(0, HERE)
 
 import engine
-from engine import Taxonomy, split_opinions, build_stats, normalize, norm_key
-from translate import Translator
+from engine import (Taxonomy, split_opinions, build_stats, normalize, norm_key,
+                    UNSPEC_LABEL)
 import io_excel
 import io_html
 import io_md
@@ -85,7 +86,7 @@ def probe(paths):
 
 def pick_text_column(wb, cfg, exclude=None):
     """精准识别文本列（多信号打分：表头语义 + 内容特征）"""
-    from discover import pick_text_col
+    from discover_lib import pick_text_col
     return pick_text_col(wb['headers'], wb['_rows'], cfg.get('text_columns', {}),
                          wb['path'], wb['sheet'], exclude=exclude)
 
@@ -220,10 +221,9 @@ def uniq_evidence(items, limit=250):
 # ======================================================================
 # 主流程
 # ======================================================================
-def run(cfg_path, out_dir, title, audit=False, sample=60):
+def run(cfg_path, out_dir, title, audit=False, sample=60, zh_file=None, strict=False):
     cfg = json.load(io.open(cfg_path, encoding='utf-8'))
     tax = Taxonomy(cfg)
-    tr = Translator(cfg.get('extra_translations', {}))
 
     wbs = read_workbooks(cfg['inputs'])
     all_rows = []
@@ -233,7 +233,7 @@ def run(cfg_path, out_dir, title, audit=False, sample=60):
             print('  · %s/%s  未识别到反馈文本列，跳过' % (wb['file'], wb['sheet']))
             continue
         # 打印识别依据，便于人工核验
-        from discover import explain_pick
+        from discover_lib import explain_pick
         sc, why = explain_pick(wb['headers'], wb['_rows'], tc)
         print('  · %s/%s' % (wb['file'], wb['sheet']))
         print('      文本列「%s」 score=%d  %s'
@@ -257,9 +257,35 @@ def run(cfg_path, out_dir, title, audit=False, sample=60):
         raise SystemExit('没有可用文本行，请检查 text_columns 配置')
 
     ops = split_opinions(all_rows, tax, '买家之声退货报告')
+
+    # ---- 翻译 ----
+    # 优先用外部译文映射（Agent 翻译产出）；缺失部分用规则翻译补短句
+    zh_map = {}
+    if zh_file and os.path.exists(zh_file):
+        for line in io.open(zh_file, encoding='utf-8'):
+            line = line.strip()
+            if not line:
+                continue
+            d = json.loads(line)
+            if d.get('zh'):
+                zh_map[d['en']] = d['zh']
+        print('  载入外部译文 %d 条（来自 %s）' % (len(zh_map), os.path.basename(zh_file)))
+    from translate import apply_mapping, rule_translate
+    apply_mapping(ops, zh_map)
+    # 未覆盖的短句用规则翻译补上
+    filled = 0
     for o in ops:
-        o['zh'] = tr(o['snippet'])
-        o['raw_zh'] = tr(o['raw'])
+        if not o.get('zh'):
+            z = rule_translate(o['snippet'], cfg.get('extra_translations', {}))
+            if z:
+                o['zh'] = z
+                filled += 1
+        if not o.get('raw_zh'):
+            z = rule_translate(o['raw'], cfg.get('extra_translations', {}))
+            o['raw_zh'] = z or ''
+    n_zh = sum(1 for o in ops if o.get('zh'))
+    print('  译文覆盖 %d/%d (%.1f%%)，其中规则补齐 %d 条'
+          % (n_zh, len(ops), n_zh / max(1, len(ops)) * 100, filled))
 
     N = len(ops)
     neg = [o for o in ops if o['sentiment'] == '负面']
@@ -273,7 +299,7 @@ def run(cfg_path, out_dir, title, audit=False, sample=60):
     # 部件维度 → 模式 → 证据
     dim_groups = defaultdict(lambda: defaultdict(list))
     for o in neg:
-        dim_groups[o.get('part') or '未指明部件'][(o['cat3'] or '未细分',
+        dim_groups[o.get('part') or '未指明部件'][(o['cat3'] or '未指明（原文无具体落点）',
                                                   o.get('cat3_desc', ''))].append(o)
     dims = []
     for dim, modes in dim_groups.items():
@@ -299,7 +325,7 @@ def run(cfg_path, out_dir, title, audit=False, sample=60):
     for cat2, items in sorted(c2_groups.items(), key=lambda x: -len(x[1])):
         sub = defaultdict(list)
         for o in items:
-            sub[(o['cat3'] or '未细分', o.get('cat3_desc', ''))].append(o)
+            sub[(o['cat3'] or '未指明（原文无具体落点）', o.get('cat3_desc', ''))].append(o)
         children = []
         for (mode, desc), its in sorted(sub.items(), key=lambda x: -len(x[1])):
             children.append(dict(
@@ -349,9 +375,15 @@ def run(cfg_path, out_dir, title, audit=False, sample=60):
                              children=children, quotes=[]))
 
     # 兼容旧模板：负面痛点 TopN（扁平）
+    # 模板读 d.name / d.n / d.pct / d.cat1，这里统一成这套字段名
+    # 「未指明（原文无具体落点）」不是失效模式，单独统计，不混入痛点排行
     neg_top = []
+    unspec_total = 0
     for d in dims:
         for m in d['modes']:
+            if m['mode'] == UNSPEC_LABEL:
+                unspec_total += m['n']
+                continue
             neg_top.append(dict(name=m['mode'], n=m['n'],
                                 pct=round(m['pct_of_neg'], 2),
                                 cat1=d['dim'], dim=d['dim'],
@@ -378,6 +410,62 @@ def run(cfg_path, out_dir, title, audit=False, sample=60):
                             diff=round(a - b, 2)))
     src_cmp.sort(key=lambda x: -x['ret'])
 
+    # ---- 部件 × 模式 × 来源 交叉表 ----
+    # 「普遍 vs 个案」判定依据：
+    #   普遍问题 = 同一模式出现在 >=3 条不同原文，或同时出现在退货与评论两个来源
+    #   个案问题 = 只在单一来源出现，且不同原文 <=2 条（偶发个例）
+    CROSS_MIN_DOCS = 3
+    cross_map = defaultdict(list)
+    for o in neg:
+        key = (o.get('part') or '未指明部件',
+               o.get('cat3') or UNSPEC_LABEL,
+               o.get('cat3_desc', ''))
+        cross_map[key].append(o)
+
+    cross = []
+    for (part, mode, desc), items in cross_map.items():
+        docs = len({o['raw'] for o in items})
+        srcs = set(o['src'] for o in items)
+        ret = sum(1 for x in items if x['src'] == '买家之声退货报告')
+        rev = len(items) - ret
+        both = len(srcs) > 1
+        widespread = (docs >= CROSS_MIN_DOCS) or both
+        cross.append(dict(
+            part=part, mode=mode, desc=desc, n=len(items),
+            docs=docs, ret=ret, rev=rev,
+            pct=round(len(items) / negN * 100, 2),
+            cross_source=both,
+            kind='普遍' if widespread else '个案',
+            quotes=pick_evidence(items, 3)))
+    cross.sort(key=lambda x: (-x['n'], x['part'], x['mode']))
+
+    # ---- 优先级排序 ----
+    # 综合分 = 条数占比 + 跨来源加成 + 多原文加成
+    for c in cross:
+        c['score'] = round(
+            c['pct'] * (1.0 + (0.5 if c['cross_source'] else 0.0)
+                        + min(1.0, c['docs'] / 5.0) * 0.5), 3)
+    # 「未指明（原文无具体落点）」不是失效模式，不进入行动清单，
+    # 否则会把「原文没写清楚」排在真实痛点前面。
+    priority = sorted([c for c in cross if c['mode'] != UNSPEC_LABEL],
+                      key=lambda x: -x['score'])[:15]
+
+    # ---- 按部件聚合的交叉汇总（部件 × 模式 是否跨来源）----
+    part_cross = []
+    part_groups = defaultdict(list)
+    for c in cross:
+        part_groups[c['part']].append(c)
+    for part, cs in sorted(part_groups.items(), key=lambda x: -sum(c['n'] for c in x[1])):
+        tot = sum(c['n'] for c in cs)
+        part_cross.append(dict(
+            part=part, n=tot,
+            modes=len(cs),
+            widespread=sum(1 for c in cs if c['kind'] == '普遍'),
+            isolated=sum(1 for c in cs if c['kind'] == '个案'),
+            cross_source=sum(1 for c in cs if c['cross_source']),
+            ret=sum(c['ret'] for c in cs), rev=sum(c['rev'] for c in cs),
+            top=sorted(cs, key=lambda x: -x['n'])[:3]))
+
     # 明细
     detail = []
     for i, o in enumerate(ops, 1):
@@ -389,14 +477,24 @@ def run(cfg_path, out_dir, title, audit=False, sample=60):
             doubt=1 if o.get('doubt') else 0,
             raw=o['raw'], raw_zh=o.get('raw_zh', '')))
 
+    spec_n = sum(1 for o in ops if o.get('concrete'))
+    ret_ops = [o for o in ops if o['src'] == '买家之声退货报告']
+    rev_ops = [o for o in ops if o['src'] != '买家之声退货报告']
     kpi = dict(
         raw_total=len(all_rows), raw_ret=sum(1 for r in all_rows if r['src'] == '买家之声退货报告'),
         raw_rev=sum(1 for r in all_rows if r['src'] != '买家之声退货报告'),
+        date=datetime.now().strftime('%Y-%m-%d'),
         total=N, negN=negN, pos=len(pos), neu=len(neu),
         neg_pct=round(len(neg) / N * 100, 2),
         pos_pct=round(len(pos) / N * 100, 2), neu_pct=round(len(neu) / N * 100, 2),
-        spec=sum(1 for o in ops if o.get('concrete')),
-        spec_pct=round(sum(1 for o in ops if o.get('concrete')) / N * 100, 2),
+        spec=spec_n,
+        spec_pct=round(spec_n / N * 100, 2),
+        # 网页模板用的派生字段
+        vague=N - spec_n,
+        vague_pct=round((N - spec_n) / N * 100, 2),
+        ret_op=len(ret_ops), rev_op=len(rev_ops),
+        rev_pct=round(len(rev_ops) / N * 100, 2),
+        ret_pct=round(len(ret_ops) / N * 100, 2),
         doubt=sum(1 for o in ops if o.get('doubt')),
         doubt_pct=round(sum(1 for o in ops if o.get('doubt')) / N * 100, 2),
         avg_per_text=round(N / max(1, len(all_rows)), 2),
@@ -409,7 +507,8 @@ def run(cfg_path, out_dir, title, audit=False, sample=60):
 
     data = dict(kpi=kpi, dims=dims, cat2_tree=cat2_tree, cat1_all=cat1_all,
                  cat1_neg=cat1_neg, neg_tree=neg_tree, neg_top=neg_top,
-                 pos_top=pos_top, src_cmp=src_cmp, detail=detail, title=title)
+                 pos_top=pos_top, src_cmp=src_cmp, detail=detail, title=title,
+                 cross=cross, part_cross=part_cross, priority=priority)
 
     # ---- 输出 ----
     os.makedirs(out_dir, exist_ok=True)
@@ -438,14 +537,121 @@ def run(cfg_path, out_dir, title, audit=False, sample=60):
         pool = [o for o in ops if o['snippet'].strip()]
         for o in random.sample(pool, min(sample, len(pool))):
             print('  %-64s -> %s / %s' % (o['snippet'][:64], o['cat1'], o['cat2']))
-        uncls = [o for o in neg if o['cat2'].endswith('（未细分）')
-                 or o['cat2'] == '其他（未细分）']
+        uncls = [o for o in neg if UNSPEC_LABEL in o['cat2']
+                 or UNSPEC_LABEL in (o.get('mode') or '')]
         print('\n未归类到具体部件/模式的负面观点：%d 条（%.1f%%）'
               % (len(uncls), len(uncls) / max(1, len(neg)) * 100))
         c = Counter(o['snippet'][:40] for o in uncls)
         for k, v in c.most_common(15):
             print('   %3d  %s' % (v, k))
+
+    # ---- 质量门禁 ----
+    # 不达标就明确失败，避免 Agent 跳过复核直接交付
+    quality = assess_quality(ops, neg)
+    print('\n===== 质量评估 =====')
+    for k, v in quality['items']:
+        print('  %-34s %s' % (k, v))
+    kpi['quality'] = quality
+    if strict and not quality['passed']:
+        print('\n✗ 质量门禁未通过（--strict）：')
+        for msg in quality['failures']:
+            print('   - %s' % msg)
+        print('\n请先修正 taxonomy 配置或补充译文，再重新运行。')
+        raise SystemExit(3)
+    if not quality['passed']:
+        print('\n⚠ 质量未达标，建议加 --strict 强制门禁。当前问题：')
+        for msg in quality['failures']:
+            print('   - %s' % msg)
     return data
+
+
+# 质量门禁阈值
+STRICT_MAX_UNCLASSIFIED = 0.25   # 未归类负面占比上限
+STRICT_MIN_TRANSLATION = 0.60    # 译文覆盖率下限
+STRICT_MAX_MIXED = 0.15          # 中英混排占比上限
+
+
+def assess_quality(ops, neg):
+    """评估本次分析质量，返回可读指标 + 是否通过"""
+    from translate import KEEP_EN
+    n = len(ops)
+    negN = len(neg) or 1
+
+    uncls = [o for o in neg
+             if UNSPEC_LABEL in o['cat2'] or UNSPEC_LABEL in (o.get('mode') or '')]
+    uncls_pct = len(uncls) / negN * 100
+
+    zh_ok = sum(1 for o in ops if o.get('zh'))
+    zh_pct = zh_ok / max(1, n) * 100
+
+    mixed = 0
+    for o in ops:
+        z = o.get('zh') or ''
+        if not re.search(r'[\u4e00-\u9fff]', z):
+            continue
+        resid = [w for w in re.findall(r'[A-Za-z]{3,}', z)
+                 if w.lower() not in KEEP_EN]
+        if resid:
+            mixed += 1
+    mixed_pct = mixed / max(1, n) * 100
+
+    # 部件/模式识别率：只在**非平台理由**的观点上统计
+    # （平台理由本就是固定选项，没有部件与模式，用它做分母会失真）
+    free_neg = [o for o in neg if not o.get('platform')]
+    freeN = len(free_neg) or 1
+
+    with_part = sum(1 for o in free_neg if o.get('part'))
+    part_pct = with_part / freeN * 100
+
+    with_mode = sum(1 for o in free_neg if (o.get('cat3') or o.get('mode'))
+                    and UNSPEC_LABEL not in (o.get('cat3') or o.get('mode')))
+    mode_pct = with_mode / freeN * 100
+
+    failures = []
+    if uncls_pct > STRICT_MAX_UNCLASSIFIED * 100:
+        failures.append('未归类负面占比 %.1f%% > %.0f%%：需补 failure_modes 或 parts'
+                        % (uncls_pct, STRICT_MAX_UNCLASSIFIED * 100))
+    if zh_pct < STRICT_MIN_TRANSLATION * 100:
+        failures.append('译文覆盖率 %.1f%% < %.0f%%：请用 --export-zh-todo 导出并让 Agent 翻译'
+                        % (zh_pct, STRICT_MIN_TRANSLATION * 100))
+    if mixed_pct > STRICT_MAX_MIXED * 100:
+        failures.append('中英混排占比 %.1f%% > %.0f%%：译文需人工修正'
+                        % (mixed_pct, STRICT_MAX_MIXED * 100))
+
+    items = [
+        ('未归类负面占比', '%.1f%%（%d/%d）' % (uncls_pct, len(uncls), negN)),
+        ('命中具体失效模式', '%.1f%%（非平台理由 %d 条中）' % (mode_pct, freeN)),
+        ('识别出具体部件', '%.1f%%' % part_pct),
+        ('译文覆盖率', '%.1f%%' % zh_pct),
+        ('中英混排占比', '%.1f%%' % mixed_pct),
+        ('总观点数', '%d（其中平台理由 %d）' % (n, sum(1 for o in ops if o.get('platform')))),
+    ]
+    return dict(items=items, failures=failures, passed=not failures,
+                uncls_pct=round(uncls_pct, 2), zh_pct=round(zh_pct, 2),
+                mixed_pct=round(mixed_pct, 2), mode_pct=round(mode_pct, 2),
+                part_pct=round(part_pct, 2))
+
+
+def export_translation_todo(cfg_path, out_path):
+    """导出待翻译清单（给 Agent 批量翻译）"""
+    cfg = json.load(io.open(cfg_path, encoding='utf-8'))
+    tax = Taxonomy(cfg)
+    wbs = read_workbooks(cfg['inputs'])
+    rows = []
+    for wb in wbs:
+        tc = pick_text_column(wb, cfg)
+        if tc is None or _is_meta_sheet(wb, tc):
+            continue
+        rows.extend(extract_rows(wb, tc, pick_star_column(wb), pick_source_label(wb)))
+    ops = split_opinions(rows, tax, '买家之声退货报告')
+    items = [dict(en=o['snippet']) for o in ops]
+    items += [dict(en=o['raw']) for o in ops if o['raw'] != o['snippet']]
+    from translate import export_todo
+    total, need = export_todo(items, out_path, cfg.get('extra_translations', {}))
+    print('待译清单已写入：%s' % out_path)
+    print('  唯一文本 %d 条，其中规则未覆盖需 Agent 翻译 %d 条' % (total, need))
+    print('  → Agent 逐条填 zh 字段后，用 --zh <该文件> 回填')
+    return total, need
 
 
 def main():
@@ -456,15 +662,22 @@ def main():
     ap.add_argument('--title', default='亚马逊退货与评论洞察分析')
     ap.add_argument('--audit', action='store_true', help='抽样复核')
     ap.add_argument('--sample', type=int, default=60)
+    ap.add_argument('--zh', help='译文 JSONL（Agent 翻译产出）')
+    ap.add_argument('--export-zh-todo', help='导出待翻译清单到指定路径')
+    ap.add_argument('--strict', action='store_true',
+                    help='质量门禁：未归类占比超标时直接失败')
     a = ap.parse_args()
 
+    if a.export_zh_todo:
+        export_translation_todo(a.config, a.export_zh_todo)
+        return
     if a.probe:
         probe(a.probe)
         return
     if not a.config:
         ap.print_help()
         return
-    run(a.config, a.out_dir, a.title, a.audit, a.sample)
+    run(a.config, a.out_dir, a.title, a.audit, a.sample, a.zh, a.strict)
 
 
 if __name__ == '__main__':

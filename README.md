@@ -17,7 +17,8 @@
 ### 1. 忠于原文的观点拆分
 - 所有观点**必须是原文截取**，不做语义扩充、不臆测缺陷部位
 - 一条含多个独立感受的原文**必须拆开**：「手感好但是支架不好用」→「手感好（正向）」+「支架不好用（负面）」
-- 实测：1377 条原始反馈 → 2774 条独立观点（平均 2.0 条/原文）
+- **内置叙述句过滤**：「I've used other cases…」「I came from OtterBox…」这类背景交代不算对本品的评价
+- 平台下拉理由（`Not as Expected`、`Defective` 等）单独成列，**不参与部件归因**
 
 ### 2. 多级标签体系
 ```
@@ -41,31 +42,48 @@
 | 保温杯 | 杯盖 / 密封圈 / 内胆 / 吸管 |
 | 衣服 | 拉链 / 袖口 / 标签 / 面料 |
 
-挖掘脚本会输出候选词 + 与各失效现象的共现次数 + **原始证据句**，
+挖掘脚本输出候选词 + 与各失效现象的共现次数 + **原始证据句**，
 由你（Agent）阅读后判断哪些是真部件，再写进配置。
+支持两种用法：`--config`（带配置跑）或 `--files`（直接喂 xlsx）。
 
-### 4. 中英对照翻译
-- 买家原文默认**中英对照**：中文为主（深色加粗），英文原文小字斜体保留在下方，可核对
-- 词典驱动（`scripts/lib/dict_zh.py`），覆盖电商通用词
+### 4. global_modes：配置量减半
+**通用失效模式**（断裂脱落、贴合不好、做工粗糙…）放进 `failure_modes` 后，
+用 `global_modes` 声明它们**对所有部件生效**；`parts[].modes` 只写**该部件特有**的模式：
+
+```json
+{
+  "global_modes": ["断裂脱落", "不贴合", "形变", "结构强度"],
+  "parts": [
+    { "name": "磁吸环", "modes": ["磁吸失效", "对位偏差"], "...": "..." }
+  ]
+}
+```
+
+### 5. 配置自检 + 质量门禁
+- **`validate_taxonomy.py`**（跑之前必做，30 秒）：检查结构完整性、**模式引用是否存在**（静默失效的高发点）、正则能否编译、一级大类是否合法、命中率预检、词典规模
+- **`run.py --strict`**（交付前门禁）：打印质量评估，不达标时返回非 0 退出码，阈值见下表
+
+### 6. 中英对照翻译（规则 + Agent 分工）
+- 短评价句（≤8 词）走**规则翻译**（词典驱动 `dict_zh.py`，覆盖电商通用词）
+- 长句走 **Agent 回灌**：`--export-zh-todo` 导出待翻清单 → Agent 填 `zh` 字段 → `--zh` 回灌重跑
+- 中文为主（深色加粗），英文原文小字斜体保留在下方，可核对
 - 品类专属词汇补到配置的 `extra_translations`
+- **不要用规则翻译长句**——实测会产生 70%+ 的中英混排，比保留英文更糟
 
-### 5. 三种交付物
+### 7. 三种交付物
 
 | 文件 | 内容 | 用途 |
 |---|---|---|
 | `*_可视化.html` | 单文件网页，离线可开，白天浅色主题，零外部依赖 | 汇报、分享、嵌入看板 |
-| `*_洞察分析.xlsx` | 5 个工作表 | 二次分析、筛选、导出 |
-| `*_分析报告.md` | Markdown 报告 | 文档、PR、复盘 |
+| `*_洞察分析.xlsx` | 7 个工作表 | 二次分析、筛选、导出 |
+| `*_分析报告.md` | Markdown 报告（含「普遍 vs 个案」判定与优先级） | 文档、PR、复盘 |
 
-### 6. 严格的口径与质量约束
-- **分母永远写清楚**：占全部观点% / 占本标签% / 占全部负面% / 占该来源内部%——三者不可混用
+### 8. 严格的口径约束
+- **分母永远写清楚**：占全部观点% / 占本标签% / 占全部负面% / 占该来源内部%——不可混用
 - **百分比两位小数**
-- **平台理由单独成列**：`Not as Expected`、`Defective`、`Damaged`、`Changed Mind`
-  是亚马逊固定下拉选项，没有具体落点，**不参与部件归因**，不为凑归因而强行拆解
 - **样本太小要明说**，不过度推断根因
 - **语义模糊标「归类存疑」**，不硬猜
-- **`--audit` 抽样复核**：随机抽 60 条逐条打印 `原文 → 归类`，统计未归类比例，
-  逼你修正配置后重跑，直到未归类占比降到可接受水平
+- **`--audit` 抽样复核**：随机抽 60 条逐条打印 `原文 → 归类`，逼你修正配置后重跑
 
 ---
 
@@ -80,7 +98,7 @@ pip install pandas openpyxl XlsxWriter
 
 ---
 
-## 三、快速开始（5 步）
+## 三、快速开始（7 步）
 
 ### 第 1 步 · 探查输入文件
 
@@ -88,38 +106,45 @@ pip install pandas openpyxl XlsxWriter
 python scripts/run.py --probe "D:/data/退货报告.xlsx" "D:/data/评论导出.xlsx"
 ```
 
-输出每个文件的工作表、表头、行数、**文本列候选**。这决定下一步 `text_columns` 怎么填。
+输出每个文件的工作表、表头、行数、**文本列候选**。这决定 `text_columns` 怎么填。
 
 > ⚠️ **必做**：退货报告里「反馈内容」和「商品标题」都是长文本，不指定列很容易选错。
+> 卖家精灵导出常带 `Note` 工作表（客服电话/插件指南），脚本会自动跳过。
 
 ### 第 2 步 · 自动提炼部件维度
 
 ```bash
 python scripts/discover.py --config taxonomy.json --out candidates.json
+# 或不带配置，直接喂文件：
+python scripts/discover.py --files "D:/data/评论导出.xlsx" --out candidates.json
 ```
-
-从语料里挖掘本品类的部件候选，输出候选词 + 共现次数 + 原始证据句。
 
 > ⚠️ **必做**：**脚本负责统计，语义判断交给你。**
 > 必须阅读候选与证据样本，把**真部件**写进 taxonomy 配置。跳过这步 = 后面全是错的。
 
 ### 第 3 步 · 写 taxonomy 配置
 
-复制 `examples/taxonomy.example.json` 改写。详见 [references/taxonomy-guide.md](references/taxonomy-guide.md)。
-
-```bash
-cp examples/taxonomy.example.json taxonomy.json
-```
-
-三块必填：
+复制 `examples/taxonomy.example.json`（通用样例）或
+`examples/taxonomy.iphone-duo-case.json`（真实完整案例：iPhone 双料壳，9 部件 / 47 模式）改写。
+详见 [references/taxonomy-guide.md](references/taxonomy-guide.md)。
 
 | 字段 | 作用 |
 |---|---|
 | `inputs` | 输入文件路径列表 |
 | `text_columns` | 指定文本列：`{文件名: 列名}` 或 `{工作表名: 列名}`；留空则自动挑最长的列 |
-| `parts` | 本品类的部件（中文名 + 英文别名 + 归属一级大类 + 允许的失效模式） |
+| `parts` | 本品类的部件（中文名 + 英文别名 + 归属一级大类 + **特有**失效模式） |
 | `failure_modes` | 失效现象库（断裂/松动/撑不住/过薄/不贴合…跨品类可复用） |
+| `global_modes` | **通用模式清单**：声明后对所有部件生效 |
 | `extra_translations` | 品类专属英文词的中文翻译 |
+
+### 第 3.5 步 · 配置自检（必做，30 秒）
+
+```bash
+python scripts/validate_taxonomy.py --config taxonomy.json
+```
+
+检查结构完整性、**模式引用是否存在**（静默失效的高发点）、正则能否编译、
+一级大类是否合法、命中率预检、词典规模。**有 ERROR 必须先修再往下跑。**
 
 ### 第 4 步 · 跑全流程
 
@@ -136,7 +161,17 @@ output/
 └── XX产品退货与评论洞察分析_分析报告.md
 ```
 
-### 第 5 步 · 复核并迭代
+### 第 5 步 · 翻译长句（可选但强烈建议）
+
+```bash
+# ① 导出待翻译清单（JSONL）
+python scripts/run.py --config taxonomy.json --out-dir ./output --export-zh-todo zh_todo.jsonl
+# ② Agent 逐条填好 "zh" 字段，另存 zh_map.jsonl
+# ③ 回灌译文后重新出报告
+python scripts/run.py --config taxonomy.json --out-dir ./output --zh zh_map.jsonl
+```
+
+### 第 6 步 · 复核并迭代（必做）
 
 ```bash
 python scripts/run.py --config taxonomy.json --out-dir ./output --audit
@@ -144,7 +179,25 @@ python scripts/run.py --config taxonomy.json --out-dir ./output --audit
 
 `--audit` 随机抽样 60 条逐条打印 `原文 → 归类`，并统计未归类比例。
 **读这些样本，修正 taxonomy 后重跑**，直到未归类占比降到可接受水平。
-规则写错的代价是整份报告失真，这一步不能跳。
+
+### 第 7 步 · 质量门禁（交付前）
+
+```bash
+python scripts/run.py --config taxonomy.json --out-dir ./output --strict
+```
+
+不达标时返回非 0 退出码：
+
+| 指标 | 阈值 | 不达标怎么办 |
+|---|---|---|
+| 未归类负面占比 | ≤ 25% | 补 `failure_modes` 的 patterns |
+| 识别出具体部件 | 越高越好 | 补 `parts` 的 aliases |
+| 命中具体失效模式 | 越高越好 | 同上 |
+| 译文覆盖率 | ≥ 60% | 用 `--export-zh-todo` 补翻 |
+| 中英混排占比 | ≤ 15% | 检查是否误用规则翻译长句 |
+
+> 指标口径：**部件识别率 / 模式命中率** 的分母是**非平台理由**的负面观点数，
+> 平台下拉理由（无具体落点）不参与归因。
 
 ---
 
@@ -164,15 +217,17 @@ python scripts/run.py --config taxonomy.json --out-dir ./output --audit
 
 **主题**：白天浅色（`--bg:#f4f6fa`），全部图表用原生 SVG 绘制，**零外部依赖，离线可开**。
 
-### 4.2 Excel 5 个工作表
+### 4.2 Excel 7 个工作表
 
 | 工作表 | 内容 | 分母 |
 |---|---|---|
-| 二级标签细分 | 二级标签 → 细分模式 → 现象描述 + 4 条中英原文 | 占本标签% |
+| 二级标签细分 | 二级标签 → 细分模式 → 现象描述 + 中英原文 | 占本标签% |
 | 二级标签总览 | 全部二级标签降序 | 占全部负面% |
 | 部件维度×失效模式 | 部件 → 失效模式 → 证据 | 占本维度% / 占全部负面% |
 | 原文证据墙 | 全部负面原文（中英对照），按二级标签归类 | — |
 | 全量观点明细 | 全部观点（含中性/正向），13 列 | — |
+| **交叉表_部件×模式×来源** | 部件 × 模式 × 退货/评论来源三维交叉 | 占比 |
+| **优先级行动清单** | 按影响面排序的改善建议 | — |
 
 ### 4.3 口径定义（必须遵守）
 
@@ -198,26 +253,28 @@ python scripts/run.py --config taxonomy.json --out-dir ./output --audit
 
 ```
 amz-review-insight/
-├── SKILL.md                        技能说明（供 Agent 路由）
-├── README.md                       本文件
+├── SKILL.md                            技能说明（供 Agent 路由）
+├── README.md                           本文件
 ├── examples/
-│   └── taxonomy.example.json       可直接改的 taxonomy 样例（10 部件 / 37 失效模式）
+│   ├── taxonomy.example.json           通用样例（10 部件 / 37 失效模式 / global_modes）
+│   └── taxonomy.iphone-duo-case.json   真实完整案例（iPhone 双料壳，9 部件 / 47 模式）
 ├── references/
-│   ├── taxonomy-guide.md           怎么写 taxonomy 配置
-│   └── output-spec.md              交付物规格与口径
+│   ├── taxonomy-guide.md               怎么写 taxonomy 配置
+│   └── output-spec.md                  交付物规格与口径
 ├── scripts/
-│   ├── run.py                      端到端主流程（--probe / --audit / --out-dir / --title）
-│   ├── discover.py                 自动提炼部件候选
-│   ├── check_html.py               网页自检（NaN / undefined / 外部引用）
+│   ├── run.py                          端到端主流程（probe / run / audit / strict / 翻译回灌）
+│   ├── validate_taxonomy.py            配置自检（跑之前先跑它）
+│   ├── discover.py                     自动提炼部件候选（--config 或 --files）
+│   ├── check_html.py                   网页自检（NaN / undefined / 外部引用）
 │   └── lib/
-│       ├── engine.py               拆分/分类/统计引擎
-│       ├── discover.py             候选挖掘算法
-│       ├── dict_zh.py              通用英中词典
-│       ├── translate.py            翻译器
-│       ├── io_html.py              网页输出
-│       ├── io_excel.py             Excel 输出
-│       └── io_md.py                报告输出
-└── templates/web/                  网页模板（改样式改这里，不影响分析逻辑）
+│       ├── engine.py                   拆分/分类/统计引擎
+│       ├── discover_lib.py             候选挖掘算法
+│       ├── dict_zh.py                  通用英中词典
+│       ├── translate.py                翻译器（短句规则 + 长句回灌）
+│       ├── io_html.py                  网页输出
+│       ├── io_excel.py                 Excel 输出（7 工作表）
+│       └── io_md.py                    报告输出
+└── templates/web/                      网页模板（改样式改这里，不影响分析逻辑）
     ├── index.html  styles.css  app.js
     ├── c2.css  c2.js  drill.css
     └── v2.css  v2.js
@@ -231,6 +288,7 @@ amz-review-insight/
 |---|---|
 | 换品类（耳机/保温杯/衣服…） | 改 `parts` 和 `aliases`，跑 `discover.py` 拿候选 |
 | 标签更细 | 在 `failure_modes` 里加模式，或给 `parts` 配更具体的 `modes` |
+| 通用模式一次声明 | `global_modes`：对全部部件生效，配置量减半 |
 | 换一级大类 | 改 `failure_modes[].cat1` 与 `parts[].cat1` |
 | 换视觉风格 | 改 `templates/web/` 下的 CSS/JS，不影响分析逻辑 |
 | 加品类专属词 | `extra_translations`：`{"magsafe": "MagSafe", "hinge protector": "铰链护盖"}` |
@@ -242,10 +300,16 @@ amz-review-insight/
 
 - **文本列选错**：退货报告里「反馈内容」和「商品标题」都是长文本。用 `--probe` 看候选，
   在 `text_columns` 里显式指定。
+- **说明页混进数据**：卖家精灵导出常带 `Note` 工作表（客服电话/插件指南），
+  脚本会自动跳过；若没跳过，在 `text_columns` 里排除该表名。
 - **评论表混了多列**：星级列用于辅助情感判定，脚本会自动找 `星级/rating/star/score`。
 - **部件别名漏了**：买家可能写「magsafe」「磁吸」「MagSafe 环」，`aliases` 要把各种写法都列上。
-- **模式被部件抢走**：用 `parts[].modes` 限定某部件只可能出现的模式，避免误配
-  （例如「磁吸环」只可能是 `磁吸失效/对位偏差/结构干扰`，不该出现「断裂」）。
+- **模式被部件抢走**：用 `parts[].modes` 限定某部件只可能出现的模式，避免误配。
+- **`parts[].modes` 引用了不存在的模式**：不会报错，只会永远匹配不上——
+  这就是 `validate_taxonomy.py` 存在的原因。
+- **叙述句被当成观点**：「I've used other cases…」「I came from OtterBox…」是背景交代，
+  不是对本品的评价。引擎已内置叙述句过滤，但仍要用 `--audit` 抽查确认。
+- **长句用规则翻译**：会产生大量中英混排（实测 70%+）。长句必须走 Agent 回灌。
 - **正则顺序**：引擎按数组顺序匹配，先命中先归属。把**更具体的**放前面
   （`顶膜` 放 `气泡` 前面），泛化的放后面。
 - **缩写要都写**：`does not|doesnt|did not|didnt|won't|wont`。
@@ -254,7 +318,8 @@ amz-review-insight/
 
 ## 八、完整示例
 
-以折叠屏手机壳为例的完整调用序列：
+以 iPhone 双料壳为例的完整调用序列（真实案例配置在
+[examples/taxonomy.iphone-duo-case.json](examples/taxonomy.iphone-duo-case.json)）：
 
 ```bash
 # 1. 探查
@@ -263,14 +328,25 @@ python scripts/run.py --probe "D:/data/买家之声退货导出.xlsx" "D:/data/�
 # 2. 挖部件
 python scripts/discover.py --config taxonomy.json --out candidates.json
 
-# 3. 跑流程
+# 3. 配置自检
+python scripts/validate_taxonomy.py --config taxonomy.json
+
+# 4. 跑流程
 python scripts/run.py --config taxonomy.json --out-dir ./output \
   --title "XX折叠屏手机壳退货与评论洞察分析"
 
-# 4. 复核
+# 5. 导出待翻译（可选）
+python scripts/run.py --config taxonomy.json --out-dir ./output --export-zh-todo zh_todo.jsonl
+# Agent 翻完后回灌：
+python scripts/run.py --config taxonomy.json --out-dir ./output --zh zh_map.jsonl
+
+# 6. 复核
 python scripts/run.py --config taxonomy.json --out-dir ./output --audit
 
-# 5. 网页自检
+# 7. 质量门禁
+python scripts/run.py --config taxonomy.json --out-dir ./output --strict
+
+# 8. 网页自检
 python scripts/check_html.py ./output/*_可视化.html
 ```
 
@@ -280,6 +356,7 @@ python scripts/check_html.py ./output/*_可视化.html
 
 交付前逐条确认：
 
+- [ ] `validate_taxonomy.py` 无 ERROR
 - [ ] 表1 各大类条数之和 = 全部独立观点数
 - [ ] 表2 各细分条数之和 = 所属大类条数
 - [ ] 明细表行数 = 全部独立观点数
@@ -289,6 +366,7 @@ python scripts/check_html.py ./output/*_可视化.html
 - [ ] 样本局限已写明
 - [ ] 网页无外部引用（离线可开）
 - [ ] 无 `NaN` / `undefined` 残留
+- [ ] `--strict` 门禁通过
 
 ---
 
