@@ -24,7 +24,13 @@
         "hinge cover",
         "hinge protector",
         "spine",
-        "crease"
+        "crease",
+        "hinge area",
+        "hinge part",
+        "spine cover",
+        "bend",
+        "bends",
+        "fold"
       ],
       "cat1": "结构/功能配件",
       "modes": []
@@ -39,7 +45,13 @@
         "front case",
         "front screen",
         "front",
-        "cover"
+        "cover",
+        "front glass",
+        "front screen cover",
+        "front plate",
+        "front shell",
+        "front lip",
+        "bezel"
       ],
       "cat1": "尺寸贴合",
       "modes": [
@@ -57,7 +69,12 @@
         "protector",
         "screen guard",
         "glass",
-        "film"
+        "film",
+        "screen film",
+        "tempered glass",
+        "screen cover",
+        "protective film",
+        "protector film"
       ],
       "cat1": "结构/功能配件",
       "modes": [
@@ -79,7 +96,14 @@
         "rotator",
         "360 spin",
         "finger holder",
-        "kickstand ring"
+        "kickstand ring",
+        "pop socket",
+        "popsocket",
+        "ring holder",
+        "finger ring",
+        "kick stand ring",
+        "magnetic ring",
+        "ring stand"
       ],
       "cat1": "结构/功能配件",
       "modes": [
@@ -95,7 +119,12 @@
         "mag safe",
         "wireless charging",
         "charger",
-        "charging"
+        "charging",
+        "magsafe ring",
+        "magnetic ring",
+        "wireless charge",
+        "wireless charger",
+        "charging coil"
       ],
       "cat1": "结构/功能配件",
       "modes": [
@@ -111,7 +140,12 @@
         "back",
         "back shell",
         "back panel",
-        "shell"
+        "shell",
+        "back cover",
+        "back plate",
+        "rear",
+        "rear panel",
+        "back case"
       ],
       "cat1": "结构/功能配件",
       "modes": []
@@ -122,7 +156,10 @@
         "case",
         "cases",
         "cover",
-        "body"
+        "body",
+        "whole case",
+        "main body",
+        "the shell"
       ],
       "cat1": "产品做工&材质",
       "modes": [
@@ -141,7 +178,12 @@
         "volume",
         "cut out",
         "port",
-        "speaker"
+        "speaker",
+        "cutout",
+        "cut-outs",
+        "openings",
+        "buttons",
+        "side button"
       ],
       "cat1": "使用体验",
       "modes": [
@@ -153,7 +195,10 @@
       "aliases": [
         "box",
         "package",
-        "packaging"
+        "packaging",
+        "carton",
+        "shipping box",
+        "packaging box"
       ],
       "cat1": "包装物流",
       "modes": [
@@ -241,7 +286,9 @@
         "no front (part|cover|piece|shell)",
         "incomplete product",
         "incomplete case",
-        "not complete"
+        "not complete",
+        "not (cover|covering) (the )?(sides|edges|corners)",
+        "open (sides|ends)"
       ]
     },
     {
@@ -326,7 +373,16 @@
         "metal edge",
         "raised edge",
         "uneven",
-        "not even"
+        "not even",
+        "loose (on|around) (the )?(phone|case|device)",
+        "(does not|doesnt|did not|didnt) fit (properly|right|correctly|well)",
+        "(does not|doesnt) (even )?fit with (the )?case",
+        "not (screen protector )?friendly",
+        "loose fit",
+        "doesnt lay (right|flat)",
+        "lay(s)? (right|flat)",
+        "not laying (right|flat)",
+        "fit is loose"
       ]
     },
     {
@@ -354,7 +410,14 @@
         "no hinge cover",
         "there is no protection",
         "does not protect",
-        "doesn.?t protect"
+        "doesn.?t protect",
+        "(provide|provides|provided|offer|offers|offered) (adequate |enough |any )?(drop )?protection",
+        "not covered by (the )?case",
+        "(hinge|spine|corner)[^.]{0,14}(not covered|uncovered)",
+        "(no|not|doesnt|didnt|without)[^.]{0,20}(hinge|spine)[^.]{0,15}(protection|protect|cover|covered)",
+        "hinge[^.]{0,20}(not|un)protected",
+        "(doesnt|didnt|not)[^.]{0,15}(protect|cover)[^.]{0,10}(hinge|spine)",
+        "(hinge|spine)[^.]{0,12}(exposed|uncovered|unprotected)"
       ]
     },
     {
@@ -400,7 +463,14 @@
         "didn.?t (say|mention|state)",
         "not (clearly )?stated",
         "understated",
-        "overstated"
+        "overstated",
+        "(pictures?|photos?|images?|listing)[^.]{0,20}(make|makes|made) it look",
+        "never mentions",
+        "(does not|doesnt) (say|mention|show|specify)",
+        "doesnt look like (the )?(product|picture|photos?|images?)",
+        "(dont|doesnt|didnt) show",
+        "(isnt|wasnt|not) (clearly )?shown",
+        "not what (the )?(photos?|pictures?) show"
       ]
     },
     {
@@ -472,7 +542,11 @@
         "might break",
         "could break",
         "about to break",
-        "prone to break"
+        "prone to break",
+        "not (sturdy|strong) enough",
+        "felt (cheap|weak)",
+        "not (that )?solid",
+        "not as (rugged|durable|sturdy|thick|solid) as"
       ]
     },
     {
@@ -541,7 +615,12 @@
         "does not hold the phone",
         "hard to (hold|prop)",
         "doesn.?t stay",
-        "does not stay"
+        "does not stay",
+        "not supporting",
+        "not support",
+        "hold the weight",
+        "hold (the )?phone up",
+        "support the weight"
       ]
     },
     {
@@ -619,7 +698,10 @@
         "(magnet|magnetic)[^.]{0,25}(weak|not strong|slip|fall)",
         "magnet (is )?weak",
         "slips off",
-        "does not hold magnetically"
+        "does not hold magnetically",
+        "(does not|doesnt|did not|didnt|won.t|cannot|can not|not)[^.]{0,18}(charge|charging)",
+        "(magnet|magsafe|wireless)[^.]{0,30}(not work|doesnt work|didnt work|not working|failed|stopped)",
+        "stand (is )?not (sturdy|strong) enough"
       ]
     },
     {
@@ -733,7 +815,9 @@
         "bubbles",
         "bubbling",
         "air pocket",
-        "get all the air out"
+        "get all the air out",
+        "popp?ing up",
+        "lift(ing)? (up )?(at|on) (the )?(edge|corner)"
       ]
     },
     {
@@ -756,7 +840,12 @@
       "patterns": [
         "(does not|doesnt|did not) fit[^.]{0,30}(protector|film|outer screen|with the case)",
         "too (wide|small|tight|big) (for|with)",
-        "not compatible with[^.]{0,25}(protector|film)"
+        "not compatible with[^.]{0,25}(protector|film)",
+        "too (big|small|large) (for|to) (the )?(phone|model|duo|device)",
+        "(does not|doesnt|did not|didnt) fit (the )?(outer|inner|front|back) screen",
+        "\\btoo (big|small|large|tight) (for|to)? ?(my|the)?\\s?(phone|case|device|model)?",
+        "not the right size",
+        "wrong size"
       ]
     },
     {
@@ -782,7 +871,10 @@
         "did not come with",
         "package was empty",
         "no screen protector",
-        "without (a )?screen protector"
+        "without (a )?screen protector",
+        "missing [a-z ]{0,18}(sticker|protector|piece|part|item|pad)",
+        "(did not|didnt|does not|doesnt) (come|include)[^.]{0,24}",
+        "did not have the (plastic|film|protector)"
       ]
     },
     {
@@ -804,7 +896,10 @@
         "comes loose",
         "fell apart",
         "not staying on",
-        "doesn.?t stay on"
+        "doesn.?t stay on",
+        "detach\\w*",
+        "coming (off|loose|apart)",
+        "kept (coming|falling) off"
       ]
     },
     {
@@ -815,7 +910,12 @@
         "(does not|doesnt|won.t|not) (click|lock|latch|snap) (in|into|properly)?",
         "not lock in place",
         "does not sit flush",
-        "not flush with"
+        "not flush with",
+        "(isnt|is not|not|doesnt|does not|dont|do not|didnt|did not|feels?|felt)[^.?!]{0,14}secure",
+        "secure enough",
+        "not secure at all",
+        "doesnt (lock|hold) (in|on)",
+        "(come|comes|coming|kept coming) loose"
       ]
     },
     {
@@ -995,7 +1095,11 @@
         "no protection",
         "not (enough|any) protection",
         "protection is (poor|minimal|low)",
-        "offers? no protection"
+        "offers? no protection",
+        "not safe enough",
+        "not (enough )?(safe|secure) for",
+        "(will|would|may|might) get damaged",
+        "not (enough )?protection against"
       ]
     },
     {
@@ -1048,7 +1152,60 @@
         "arrived late",
         "delivery was late",
         "several hours late",
-        "too late"
+        "too late",
+        "(will not|wont|didnt|did not) (come|arrive)"
+      ]
+    },
+    {
+      "name": "过轻（无配重感）",
+      "desc": "拿在手里发飘，没有配重，开合时容易带动手机",
+      "cat1": "产品做工&材质",
+      "patterns": [
+        "too light",
+        "feels? (very |too )?light",
+        "no weight",
+        "weightless",
+        "feels? cheap and light",
+        "doesnt have (any )?weight"
+      ]
+    },
+    {
+      "name": "表面光滑/易滑",
+      "desc": "外壳或边框太滑，握持时容易脱手",
+      "cat1": "外观手感",
+      "patterns": [
+        "slippery",
+        "too slick",
+        "slick (surface|back|feel)",
+        "no grip",
+        "lacks? grip",
+        "slips? (out of|from) (my )?hand",
+        "hard to (hold|grip)"
+      ]
+    },
+    {
+      "name": "主观不满意",
+      "desc": "只表达不喜欢/失望，没说明具体缺陷（无法归因到部件或工艺）",
+      "cat1": "其他",
+      "patterns": [
+        "i (just )?(dont|do not|didnt|did not) (like|liked)",
+        "(just )?dont like",
+        "didnt like",
+        "not (a )?fan",
+        "not (very )?(impressed|amazing|happy|satisfied)",
+        "disappoint\\w*",
+        "no good",
+        "not good$",
+        "^horrible$",
+        "not worth",
+        "would not recommend",
+        "poorly designed",
+        "\\bterrible\\b",
+        "\\bawful\\b",
+        "\\bjunk\\b",
+        "\\bgarbage\\b",
+        "\\bnot great\\b",
+        "not too (classy|happy)"
       ]
     }
   ],
@@ -1129,7 +1286,11 @@
     "覆盖不全",
     "覆盖不足",
     "配件缺失",
-    "防护不足"
+    "防护不足",
+    "扣合不牢",
+    "过轻（无配重感）",
+    "表面光滑/易滑",
+    "主观不满意"
   ],
   "_字段说明": "global_modes：通用失效模式名列表，对所有部件生效（不必在每个部件重复声明）；parts[].modes：只写该部件**专属**的失效模式；failure_modes[].patterns：匹配该模式���正则；failure_modes[].cat1：该模式归属的一级大类（9 类固定）。"
 }

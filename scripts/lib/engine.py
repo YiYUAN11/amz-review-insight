@@ -60,6 +60,34 @@ def _platform_keys():
     return _PLATFORM_KEYS_CACHE
 
 
+# 平台理由后面跟内容时的分隔符
+_PLAT_SEP = '.,;:!?-|/\u2013\u2014\u00b7'
+
+
+def split_platform_prefix(text):
+    """
+    把「平台下拉理由 + 买家自己写的内容」拆开。
+    Amazon 的反馈文本常把下拉选项和手写内容拼在同一句里：
+        'Not as expected, flimsy'      -> ('Not as expected', 'flimsy')
+        'Damaged - broken hinge'       -> ('Damaged', 'broken hinge')
+    这样「预期不符」这类笼统选项就不会抢走后面真正的缺陷描述。
+    返回 (理由, 余下内容)；不是这个形态时返回 None。
+    """
+    if not text:
+        return None
+    keys = _platform_keys()
+    for i in range(2, len(text)):
+        if text[i] not in _PLAT_SEP:
+            continue
+        head = norm_key(text[:i])
+        if head not in keys:
+            continue
+        rest = text[i + 1:].strip(' ' + _PLAT_SEP)
+        if len(rest) >= 2 and norm_key(rest) not in keys:
+            return text[:i].strip(), rest
+    return None
+
+
 # 平台理由尾部允许出现的填充词（否则不视为纯平台项）
 FILLER_TAIL = {
     '', 'now', 'at all', 'no', 'yes', 'n a', 'na', 'none', 'very', 'just',
@@ -87,19 +115,53 @@ def match_platform(text):
 
 
 # 无信息量的占位回答
+# 注意：比对时走 canon_key()（已把缩写还原成展开式），
+# 所以这里的词条按「展开式」书写即可，"didn't want to respond" 也能命中。
 PLACEHOLDER = {
-    'no', 'yes', 'na', 'n/a', 'none', 'nope', 'n', 'y', 'k', 'd', 'non', 'nah',
+    'no', 'yes', 'na', 'n a', 'n/a', 'none', 'nope', 'n', 'y', 'k', 'd', 'non', 'nah',
     'not sure', 'idk', 'unsure', 'hard to say', 'maybe', 'nothing', 'thanks',
     'the question was not relevant', 'i did not know how to answer',
     'i did not want to respond to questions', 'no more comments', 'that is all',
-    'that is all', 'perfect', 'delivered promptly', 'delivery was good',
+    'perfect', 'delivered promptly', 'delivery was good',
     'delivery was fine', 'never used it', 'just testing the feel',
+    # 无落点的一词评价 / 填空式回答：不构成可归类观点
+    'ok', 'okay', 'k', 'fine', 'meh', 'average', 'so so', 'nothing else',
+    'nothing to add', 'no comment', 'no comments', 'not applicable',
+    'does not apply', 'unknown', 'no idea', 'i do not know', 'see above',
+    'all good', 'all fine', 'everything good', 'nothing wrong', 'no problem',
+    'no problems', 'n a n a', 'none of these', 'none of the above',
+    'i would not know', 'i cannot remember', 'not sure why',
+    'the question is not relevant', 'does not have', 'do not have',
+    'nothing inaccurate',
+    'nothing inaccurate here',
+    'i am not sure',
+    'im not sure',
+    'dont think so',
+    'do not think so',
+    'it is not',
+    'no all good',
+    'do not need',
+    'dont need',
+    'i dont want it',
+    'i do not want it',
+    'dont want it',
+    'didnt read close enough',
+    'didnt read correctly',
+    'i probably just didnt read',
+    'no just didnt read',
+    'not keeping the duo',
+    'i am not sure.',
 }
+
+
+
 
 # ======================================================================
 # 通用拼写纠错（跨品类通用，只修明显错字）
 # ======================================================================
 TYPO_FIX = [
+    (r'\\bto heavy\\b', 'too heavy'),
+    (r'\\bto light\\b', 'too light'),
     (r"\bdon't\b", 'dont'), (r"\bdoesn't\b", 'doesnt'), (r"\bdidn't\b", 'didnt'),
     (r"\bwon't\b", 'wont'), (r"\bcan't\b", 'cant'), (r"\bcouldn't\b", 'couldnt'),
     (r"\bit's\b", 'its'), (r"\bthat's\b", 'that is'), (r"\bi'm\b", 'i am'),
@@ -109,14 +171,32 @@ TYPO_FIX = [
 ]
 
 
+# 「X not」→ 缩写形（与 TYPO_FIX 的缩写口径统一）
+# 关键：配置里的模式大量写成 "does not fit"，而 _fix_pattern 会把它们改写成
+# "doesnt fit" 以匹配去掉撇号的文本。如果文本仍写成 "does not fit"，
+# 两边永远对不上（实测 "the phone does not sit flush into the case" 会漏检）。
+# 因此在 normalize 阶段就把展开式折叠成缩写形，让两条通路共用同一口径。
+_NEG_COLLAPSE = [
+    (r'\bis not\b', 'isnt'), (r'\bare not\b', 'arent'), (r'\bwas not\b', 'wasnt'),
+    (r'\bwere not\b', 'werent'), (r'\bdo not\b', 'dont'), (r'\bdoes not\b', 'doesnt'),
+    (r'\bdid not\b', 'didnt'), (r'\bhas not\b', 'hasnt'), (r'\bhave not\b', 'havent'),
+    (r'\bhad not\b', 'hadnt'), (r'\bcould not\b', 'couldnt'),
+    (r'\bwould not\b', 'wouldnt'), (r'\bshould not\b', 'shouldnt'),
+    (r'\bmust not\b', 'mustnt'), (r'\bneed not\b', 'neednt'),
+    (r'\bwill not\b', 'wont'), (r'\bcan not\b', 'cant'),
+]
+
+
 def normalize(text):
-    """小写 + 去撇号 + 修错字 + 压缩空白"""
+    """小写 + 去撇号 + 修错字 + 折叠否定展开式 + 压缩空白"""
     if not text:
         return ''
-    s = text.replace("'", '').replace('\u2019', '')
+    s = text.replace("'", '').replace('\u2019', '').replace('\u2018', '')
     s = s.replace('\u2022', ' ').replace('\u00b7', ' ').replace('\u2013', '-')
     s = re.sub(r'\s+', ' ', s).strip().lower()
     for a, b in TYPO_FIX:
+        s = re.sub(a, b, s)
+    for a, b in _NEG_COLLAPSE:
         s = re.sub(a, b, s)
     return s
 
@@ -126,6 +206,32 @@ def norm_key(text):
     s = normalize(text)
     s = re.sub(r'[^a-z0-9 ]', ' ', s)
     return re.sub(r'\s+', ' ', s).strip()
+
+
+# 缩写 → 展开式（canon_key 用；只做等价替换，不改变语义）
+_CANON_MAP = [
+    (r'\bdidnt\b', 'did not'), (r'\bdoesnt\b', 'does not'), (r'\bdont\b', 'do not'),
+    (r'\bisnt\b', 'is not'), (r'\bwasnt\b', 'was not'), (r'\bwerent\b', 'were not'),
+    (r'\bcant\b', 'cannot'), (r'\bwont\b', 'will not'), (r'\bwouldnt\b', 'would not'),
+    (r'\bshouldnt\b', 'should not'), (r'\bcouldnt\b', 'could not'),
+    (r'\bhasnt\b', 'has not'), (r'\bhavent\b', 'have not'), (r'\bhadnt\b', 'had not'),
+    (r'\barent\b', 'are not'), (r'\baint\b', 'is not'),
+    (r'\bi am not\b', 'i am not'), (r'\bim\b', 'i am'),
+]
+
+
+def canon_key(text):
+    """
+    比对口径的规范化：norm_key 之后再把缩写还原成展开式。
+    用途：占位回答/噪声词表按自然写法维护，也能命中 "didn't / did not" 两种写法。
+    """
+    s = norm_key(text)
+    for a, b in _CANON_MAP:
+        s = re.sub(a, b, s)
+    return s
+
+
+PLACEHOLDER_KEYS = {canon_key(x) for x in PLACEHOLDER}
 
 
 # ======================================================================
@@ -185,6 +291,37 @@ def _fix_pattern(pat):
     return out
 
 
+# 否定词的各种写法（normalize 之后 "is not" 已折叠成 "isnt"，
+# 所以模式里只写 "not covered" 会漏掉 "is not covered"/"wasn't covered"）
+_NEG_ALT = (r'(?:not|never|isnt|arent|wasnt|werent|dont|doesnt|didnt|wont|cant|'
+            r'havent|hasnt|hadnt|couldnt|wouldnt|shouldnt)')
+
+
+def _compile_patterns(pats):
+    """
+    编译模式正则；含裸 'not' 的模式额外生成一条「否定词通配」变体。
+    例：'not covered by (the )?case'
+        → 追加 '(?:not|isnt|wasnt|...|never) covered by (the )?case'
+    这样 'The hinge of the phone was not covered by the case'
+    （normalize 后为 'wasnt covered by the case'）才能命中。
+    """
+    out = []
+    for p in pats:
+        fixed = _fix_pattern(p)
+        try:
+            out.append(re.compile(fixed, re.I))
+        except re.error:
+            continue
+        if re.search(r'\bnot\b', fixed):
+            alt = re.sub(r'\bnot\b', _NEG_ALT, fixed)
+            if alt != fixed:
+                try:
+                    out.append(re.compile(alt, re.I))
+                except re.error:
+                    pass
+    return out
+
+
 class Taxonomy:
     """标签体系配置"""
 
@@ -199,6 +336,13 @@ class Taxonomy:
         for p in self.parts:
             for a in p.get('aliases', []):
                 self.part_alias[normalize(a)] = p['name']
+        # 预编译别名正则（长别名优先），并容忍单复数：corner → corners
+        self._part_rx = []
+        for a, name in sorted(self.part_alias.items(), key=lambda x: -len(x[0])):
+            if not a:
+                continue
+            self._part_rx.append(
+                (re.compile(r'(?<![a-z])' + re.escape(a) + r'(?:s|es)?(?![a-z])'), name))
         # 部件 → 该部件**专属**的失效模式（通用模式由 global_modes 提供）
         self.part_modes = {p['name']: p.get('modes', []) for p in self.parts}
         # 全局通用模式：对所有部件生效，不必在每个部件重复声明
@@ -210,7 +354,7 @@ class Taxonomy:
                 'name': m['name'],
                 'desc': m.get('desc', ''),
                 'cat1': m.get('cat1', '结构/功能配件'),
-                'rx': [re.compile(_fix_pattern(p), re.I) for p in m.get('patterns', [])],
+                'rx': _compile_patterns(m.get('patterns', [])),
             })
         self.extra_tr = cfg.get('extra_translations', {})
 
@@ -225,11 +369,8 @@ class Taxonomy:
             if p['name'] and p['name'] in text:
                 return p['name']
         # 2) 英文别名：多词优先，避免 "cover" 抢在 "hinge cover" 前面
-        aliases = sorted(self.part_alias.items(), key=lambda x: -len(x[0]))
-        for a, name in aliases:
-            if not a:
-                continue
-            if re.search(r'(?<![a-z])' + re.escape(a) + r'(?![a-z])', low):
+        for rx, name in self._part_rx:
+            if rx.search(low):
                 return name
         return None
 
@@ -245,9 +386,26 @@ class Taxonomy:
         for p in self.parts:
             for a in p.get('aliases', []):
                 core = re.sub(r'^(the|a|an|its|their|my|your|his|her)\s+', '', normalize(a))
-                if len(core) >= 4 and re.search(r'(?<![a-z])' + re.escape(core) + r'(?![a-z])', low):
+                if len(core) >= 4 and re.search(
+                        r'(?<![a-z])' + re.escape(core) + r'(?:s|es)?(?![a-z])', low):
                     return p['name']
         return None
+
+    def _mode_hits(self, low, only=None):
+        """返回 [(命中长度, 模式名, 描述)]，按命中长度降序（同长度保持配置顺序）"""
+        hits = []
+        for i, m in enumerate(self.mode_list):
+            if only is not None and m['name'] not in only:
+                continue
+            best = 0
+            for rx in m['rx']:
+                mm = rx.search(low)
+                if mm:
+                    best = max(best, mm.end() - mm.start())
+            if best:
+                hits.append((best, -i, m['name'], m['desc']))
+        hits.sort(reverse=True)
+        return [(h[0], h[2], h[3]) for h in hits]
 
     def classify_mode(self, text, part=None):
         """
@@ -256,30 +414,25 @@ class Taxonomy:
         匹配顺序（设计要点）：
           1) 该部件**专属**模式（parts[].modes 里声明的）优先 —— 避免通用模式抢走
           2) 全局模式表（failure_modes）—— 通用模式对所有部件生效
+        在同一层内，**命中的模式文本越长越优先**：
+          "cracked and snapped" 命中「开裂」比命中通用的「做工粗糙」更具体。
         这样配置里只需给部件写「它特有的模式」，通用模式不必在每个部件重复声明。
         """
         low = normalize(text)
         # 第一轮：部件专属模式（最具体，优先）
         if part and self.part_modes.get(part):
-            for m in self.mode_list:
-                if m['name'] not in self.part_modes[part]:
-                    continue
-                for rx in m['rx']:
-                    if rx.search(low):
-                        return m['name'], m['desc']
+            hits = self._mode_hits(low, only=set(self.part_modes[part]))
+            if hits:
+                return hits[0][1], hits[0][2]
         # 第二轮：全局通用模式
         if self.global_modes:
-            for m in self.mode_list:
-                if m['name'] not in self.global_modes:
-                    continue
-                for rx in m['rx']:
-                    if rx.search(low):
-                        return m['name'], m['desc']
+            hits = self._mode_hits(low, only=set(self.global_modes))
+            if hits:
+                return hits[0][1], hits[0][2]
         # 第三轮：全表兜底
-        for m in self.mode_list:
-            for rx in m['rx']:
-                if rx.search(low):
-                    return m['name'], m['desc']
+        hits = self._mode_hits(low)
+        if hits:
+            return hits[0][1], hits[0][2]
         return None, None
 
 
@@ -380,8 +533,16 @@ def split_clauses(part):
 
 
 def is_placeholder(s):
+    """
+    无信息量片段判定：占位回答、单词感叹、残缺短语。
+    比对走 canon_key，因此 "I didn't know how to answer" 与
+    "I did not know how to answer" 视为同一句。
+    """
     k = norm_key(s)
-    return (not k) or k in PLACEHOLDER or len(k) <= 1
+    if (not k) or len(k) <= 1:
+        return True
+    ck = canon_key(s)
+    return ck in PLACEHOLDER_KEYS or k in PLACEHOLDER_KEYS or len(ck) <= 1
 
 
 # ======================================================================
@@ -796,6 +957,36 @@ def judge_concrete(text, parts):
 # ======================================================================
 # 观点拆分主流程
 # ======================================================================
+# 谈论「详情页/图片/描述」的句子：问题落在 Listing 表达上，不是某个部件的物理缺陷。
+# 这类句子即使带代词，也不应把上一条的部件继承过来。
+META_LISTING_RX = re.compile(
+    r"\b(mentions?|mentioned|says?|said|listed|listing|shown|show|shows|"
+    r"pictured|pictures?|photos?|images?|description|described|advertis\w*|"
+    r"stated|wording|title|claim\w*)\b", re.I)
+
+
+def _can_inherit_part(text, tax):
+    """
+    是否允许从同一原文的上一条观点继承部件。
+
+    只在这两种情况下继承，避免「Mossing」「N/a」「Nothing inaccurate here」
+    这类残片被硬塞进具体部件、造出一个假精度：
+      1) 句子本身命中了一个失效模式（说明它在讲某个部件的问题）
+      2) 句子用代词回指、且是一句完整描述（≥3 个实词）
+    谈论 Listing/图片/描述的句子不继承。
+    """
+    low = normalize(text)
+    if META_LISTING_RX.search(low):
+        return False
+    mode, _ = tax.classify_mode(text, None)
+    if mode:
+        return True
+    if not _has_self_ref(low):
+        return False
+    words = [w for w in low.split() if len(w) > 2]
+    return len(words) >= 3
+
+
 def split_opinions(rows, tax, source_name):
     """
     rows: [{ 'text': 原始反馈文本, 'star': 星级或None, ... }]
@@ -833,7 +1024,15 @@ def split_opinions(rows, tax, source_name):
             if is_placeholder(part):
                 continue
             # 自由文本：继续细拆
-            for cl in split_clauses(part):
+            clauses = []
+            for cl0 in split_clauses(part):
+                sp = split_platform_prefix(cl0)
+                if sp:
+                    # 'Not as expected, flimsy' → 只保留买家自己写的内容
+                    clauses.extend(split_clauses(sp[1]) or [sp[1]])
+                else:
+                    clauses.append(cl0)
+            for cl in clauses:
                 cn = norm_key(cl)
                 if not cn or cn in seen or is_placeholder(cl):
                     continue
@@ -863,9 +1062,11 @@ def split_opinions(rows, tax, source_name):
                 if _has_self_ref(cl):
                     other_ctx = False
                 part_name = tax.detect_part(cl) or tax.detect_part_loose(cl)
-                # 同一原文内继承上文部件（英文常用代词指代部件）
-                if not part_name and last_part:
+                part_inherited = False
+                # 同一原文内继承上文部件（英文常用代词指代部件）；有闸门，避免硬凑
+                if not part_name and last_part and _can_inherit_part(cl, tax):
                     part_name = last_part
+                    part_inherited = True
                 if part_name:
                     last_part = part_name
                 sent = judge_sentiment(cl, row.get('star'))
@@ -882,6 +1083,7 @@ def split_opinions(rows, tax, source_name):
                         src=row_src, raw=text, snippet=cl, sentiment='正向',
                         cat1=cat1, cat2=cat2, cat3='', cat3_desc='',
                         part=part_name or '', platform=False,
+                        part_inherited=part_inherited,
                         concrete=concrete, doubt=False, star=row.get('star'),
                     ))
                     continue
@@ -900,6 +1102,7 @@ def split_opinions(rows, tax, source_name):
                     cat1=cat1, cat2=cat2,
                     cat3=mode or '', cat3_desc=desc,
                     part=part_name or '', platform=False,
+                    part_inherited=part_inherited,
                     concrete=concrete, doubt=doubt, star=row.get('star'),
                 ))
     return ops
@@ -935,6 +1138,20 @@ def _make_cat2(part_name, cat1, mode):
 
 # 未指明具体部件/现象时的统一标签名（明确说明"原文没给落点"，不是分析失败）
 UNSPEC_LABEL = '未指明（原文无具体落点）'
+# 部件已定位、但原文没写具体现象时的三级标签名。
+# 和 UNSPEC_LABEL 分开：一个是"连部件都没有"，一个是"只到部件层级"，
+# 把两者混成一个词，会让人以为分类失败，其实是数据本身只写到这一步。
+UNSPEC_SUB = '未细分（原文只到部件层级）'
+
+
+def sub_key(o):
+    """三级标签的展示键 (key, desc)：区分「没到部件」与「没到现象」"""
+    mode = o.get('cat3') or ''
+    if mode:
+        return mode, o.get('cat3_desc', '')
+    if o.get('part'):
+        return UNSPEC_SUB, '原文没有说明具体现象'
+    return UNSPEC_LABEL, ''
 
 
 def _fallback_cat1(text, part, tax):
@@ -976,8 +1193,7 @@ def build_stats(ops):
     # 部件视角
     dim_map = defaultdict(lambda: defaultdict(list))
     for o in neg:
-        dim_map[o.get('part') or UNSPEC_LABEL][(o['cat3'] or UNSPEC_LABEL,
-                                              o.get('cat3_desc', ''))].append(o)
+        dim_map[o.get('part') or UNSPEC_LABEL][sub_key(o)].append(o)
     dims = []
     for dim, modes in dim_map.items():
         tot = sum(len(v) for v in modes.values())
@@ -1002,7 +1218,7 @@ def build_stats(ops):
     for cat2, items in sorted(c2_map.items(), key=lambda x: -len(x[1])):
         sub = defaultdict(list)
         for o in items:
-            sub[(o['cat3'] or UNSPEC_LABEL, o.get('cat3_desc', ''))].append(o)
+            sub[sub_key(o)].append(o)
         children = []
         for (mode, desc), its in sorted(sub.items(), key=lambda x: -len(x[1])):
             children.append(dict(
@@ -1011,6 +1227,10 @@ def build_stats(ops):
                 ret=sum(1 for x in its if x['src'] == '买家之声退货报告'),
                 rev=sum(1 for x in its if x['src'] != '买家之声退货报告'),
             ))
+        # 二级标签本身就是「族/模式桶」（不含部件）时，不再挂一个空的「未指明」子行：
+        # 那一层已经把话说完了，再挂一个空落点只是噪音。
+        if ' · ' not in cat2:
+            children = [c for c in children if c['key'] != UNSPEC_LABEL]
         cat2_tree.append(dict(
             cat1=items[0]['cat1'], cat2=cat2, n=len(items),
             pct_of_neg=round(len(items) / negN * 100, 2),

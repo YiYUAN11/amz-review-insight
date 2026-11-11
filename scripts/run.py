@@ -299,8 +299,7 @@ def run(cfg_path, out_dir, title, audit=False, sample=60, zh_file=None, strict=F
     # 部件维度 → 模式 → 证据
     dim_groups = defaultdict(lambda: defaultdict(list))
     for o in neg:
-        dim_groups[o.get('part') or '未指明部件'][(o['cat3'] or '未指明（原文无具体落点）',
-                                                  o.get('cat3_desc', ''))].append(o)
+        dim_groups[o.get('part') or engine.UNSPEC_LABEL][engine.sub_key(o)].append(o)
     dims = []
     for dim, modes in dim_groups.items():
         tot = sum(len(v) for v in modes.values())
@@ -325,7 +324,7 @@ def run(cfg_path, out_dir, title, audit=False, sample=60, zh_file=None, strict=F
     for cat2, items in sorted(c2_groups.items(), key=lambda x: -len(x[1])):
         sub = defaultdict(list)
         for o in items:
-            sub[(o['cat3'] or '未指明（原文无具体落点）', o.get('cat3_desc', ''))].append(o)
+            sub[engine.sub_key(o)].append(o)
         children = []
         for (mode, desc), its in sorted(sub.items(), key=lambda x: -len(x[1])):
             children.append(dict(
@@ -335,6 +334,9 @@ def run(cfg_path, out_dir, title, audit=False, sample=60, zh_file=None, strict=F
                 rev=sum(1 for x in its if x['src'] != '买家之声退货报告'),
                 quotes=pick_evidence(its, 4),
                 all_quotes=uniq_evidence(its, 200)))
+        # 二级标签本身就是「族/模式桶」（不含部件）时，不再挂空的「未指明」子行
+        if ' · ' not in cat2:
+            children = [c for c in children if c['key'] != engine.UNSPEC_LABEL]
         cat2_tree.append(dict(
             cat1=items[0]['cat1'], cat2=cat2, n=len(items),
             pct_of_neg=round(len(items) / negN * 100, 2),
@@ -381,7 +383,7 @@ def run(cfg_path, out_dir, title, audit=False, sample=60, zh_file=None, strict=F
     unspec_total = 0
     for d in dims:
         for m in d['modes']:
-            if m['mode'] == UNSPEC_LABEL:
+            if m['mode'] in (UNSPEC_LABEL, engine.UNSPEC_SUB):
                 unspec_total += m['n']
                 continue
             neg_top.append(dict(name=m['mode'], n=m['n'],
@@ -417,9 +419,7 @@ def run(cfg_path, out_dir, title, audit=False, sample=60, zh_file=None, strict=F
     CROSS_MIN_DOCS = 3
     cross_map = defaultdict(list)
     for o in neg:
-        key = (o.get('part') or '未指明部件',
-               o.get('cat3') or UNSPEC_LABEL,
-               o.get('cat3_desc', ''))
+        key = (o.get('part') or '未指明部件',) + engine.sub_key(o)
         cross_map[key].append(o)
 
     cross = []
@@ -447,7 +447,8 @@ def run(cfg_path, out_dir, title, audit=False, sample=60, zh_file=None, strict=F
                         + min(1.0, c['docs'] / 5.0) * 0.5), 3)
     # 「未指明（原文无具体落点）」不是失效模式，不进入行动清单，
     # 否则会把「原文没写清楚」排在真实痛点前面。
-    priority = sorted([c for c in cross if c['mode'] != UNSPEC_LABEL],
+    priority = sorted([c for c in cross
+                       if c['mode'] not in (UNSPEC_LABEL, engine.UNSPEC_SUB)],
                       key=lambda x: -x['score'])[:15]
 
     # ---- 按部件聚合的交叉汇总（部件 × 模式 是否跨来源）----

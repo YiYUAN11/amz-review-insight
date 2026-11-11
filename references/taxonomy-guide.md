@@ -92,12 +92,26 @@ screen protector  142  5      顶膜:38, 气泡:29, ...
 | 技巧 | 例子 |
 |---|---|
 | `[^.]{0,20}` 跨词 | `(does not)[^.]{0,20}(fit)` |
-| 缩写要都写 | `does not\|doesnt\|did not\|didnt\|won't\|wont` |
+| 缩写不必都写 | 写 `not` 或 `does not` 即可，引擎自动兼容 `isn't / wasn't / didn't / doesn't`（见下） |
 | 词边界 | `(?<![a-z])hinge(?![a-z])` 防误命中 |
 | 允许变体 | `crack\|cracked\|cracking` |
+| 单复数 | 部件别名自动容忍 `corner / corners`，模式里要自己写 `s?` |
 
-**顺序重要**：引擎按数组顺序匹配，先命中先归属。
-把**更具体的**放前面（`顶膜` 放 `气泡` 前面），泛化的放后面。
+**否定词不用写全**：引擎先把文本归一化（`does not → doesnt`、去撇号），
+再给含裸 `not` 的模式自动生成一条「否定词通配」变体，
+所以 `not covered by (the )?case` 也能命中 `wasn't covered by the case`。
+配置里写 `does not fit` 和 `doesnt fit` 效果一样。
+
+**顺序不再是唯一规则**：引擎按**命中长度**优先——同一句里
+`doesnt protect the hinge`（24 字符）会压过 `doesnt protect`（14 字符），
+越长的描述越具体。长度相同才按 `failure_modes` 数组顺序。
+所以「具体模式」的 patterns 要带上**部件/対象词**，而不是只写动词。
+
+**「没说到」要如实留空**，不要用泛化模式硬凑：
+- 原文只到部件层级（`Flimsy`、`Doesn't fit`）→ 三级标签记「未细分（原文只到部件层级）」
+- 原文连部件都没提（`I don't like it`）→ 记「未指明（原文无具体落点）」
+- 只有情绪没有具体缺陷（`Not amazing`、`Disappointed`）→ 用 `主观不满意` 模式，
+  它本身就是诚实的落点，不要塞进 `其他`，也不要用它抢真实缺陷（长度机制会自然处理）
 
 ---
 

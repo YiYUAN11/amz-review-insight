@@ -40,8 +40,14 @@ def write(out_path, data, tpl_dir=TPL):
     html = html.replace('</head>', '<style>\n' + '\n'.join(css_all) + '\n</style>\n</head>')
     for f in js_files + ['data.js']:
         html = html.replace('<script src="%s"></script>' % f, '')
-    payload = 'window.__INSIGHT_DATA__ = ' + json.dumps(
-        data, ensure_ascii=False, separators=(',', ':')) + ';\n'
+    # 内联 JSON 必须转义 < > &：买家原文若含 </script> 会提前闭合脚本块，
+    # 直接执行注入的 HTML/JS（XSS）。转成 \u 形式后 JSON.parse 解码结果不变。
+    payload = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
+    payload = (payload.replace('&', '\\u0026')
+                      .replace('<', '\\u003c')
+                      .replace('>', '\\u003e'))
+    payload = 'window.__INSIGHT_DATA__ = ' + payload + ';\n'
+    assert '</script' not in payload.lower(), '内联数据未正确转义（存在 </script）'
     html = html.replace('</body>', '<script>\n' + payload + '\n' +
                         '\n'.join(js_all) + '\n</script>\n</body>')
     # 校验：不能残留任何外部引用
